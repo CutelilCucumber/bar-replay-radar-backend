@@ -25,7 +25,7 @@ export interface MatchSummary {
   startTime: string; // ISO date-time string, as returned by gex
   players: Player[];
   allyTeams: AllyTeam[];
-  playerLeaves?: unknown[];
+  teamDeaths?: unknown[];
   spectators?: unknown[];
   mapDraws?: unknown[];
 }

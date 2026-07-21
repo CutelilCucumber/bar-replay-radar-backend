@@ -13,6 +13,7 @@ export const MILESTONES = [
   { key: "comeback", weight: 3 },
   { key: "backAndForth", weight: 2 },
   { key: "stomp", weight: -2 },
+  { key: "quickForfeit", weight: -3 },
   { key: "guerillaFighters", weight: 3 },
   { key: "carpalTunnel", weight: 2 },
   { key: "spaceRace", weight: 2 },

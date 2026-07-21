@@ -1,4 +1,3 @@
-//backend/generated/prisma/client.ts
 import { Prisma } from "../generated/prisma/client";
 import { prisma } from "../db/client";
 import { buildMatchDataset } from "./buildSeries";
@@ -43,10 +42,16 @@ export async function processMatch(gex: GexClient, summary: MatchSummary): Promi
   const existing = await prisma.match.findUnique({ where: { id: summary.id }, select: { id: true } });
   if (existing) return "alreadyExists";
 
-  const result = await gex.getGameEvent(summary.id);
-  if (result.status === "notProcessed") return "notProcessedYet";
+  const eventResult = await gex.getGameEvent(summary.id);
+  if (eventResult.status === "notProcessed") return "notProcessedYet";
 
-  const eventJson = result.data;
+  const matchJson = await gex.getMatchById(summary.id);
+  if (!matchJson) {
+    throw new Error(`gex has no match record for id ${summary.id}`);
+  }
+
+  const eventJson = eventResult.data;
+  
   const teamStats = eventJson.teamStats ?? [];
   const { players, allyTeams } = summary;
   if (teamStats.length === 0 || allyTeams.length < 2) return "insufficientData";
@@ -78,12 +83,11 @@ const [allyA, allyB] = allyIds as [number, number];
     },
     durationMin,
     wind: dataset.wind,
-    //replace with teamdeaths
-    //playerLeaves: summary.playerLeaves ?? [],
     playerCount: summary.playerCount ?? players.length,
     gamemode: String(summary.gamemode ?? ""),
-    spectatorCount: summary.spectators?.length ?? 0,
-    mapDraws: summary.mapDraws ?? [],
+    teamDeaths: matchJson.teamDeaths ?? [],
+    spectatorCount: matchJson.spectators?.length ?? 0,
+    mapDraws: matchJson.mapDraws ?? [],
     legionMatch: dataset.legionMatch,
   };
 
@@ -96,6 +100,7 @@ const [allyA, allyB] = allyIds as [number, number];
   // per game-version data better served by its own small reference table than duplicated
   // into every match row — flagging this rather than deciding it silently.
 
+  try {
   await prisma.match.create({
     data: {
       id: summary.id,
@@ -115,6 +120,20 @@ const [allyA, allyB] = allyIds as [number, number];
       analysis: analysis as unknown as Prisma.InputJsonValue,
     },
   });
+} catch (err) {
+    // The findUnique check above narrows the race window but can't close it: backfill
+    // and recent sweepers run as two independent async loops, both kicked off from the
+    // same onReady hook, and on a fresh DB backfill's first sweep (no cursor yet) covers
+    // almost the same window as the recent sweeper's. Both can reach this point for the
+    // same match id before either has committed. P2002 here means someone else won that
+    // race — the row exists, which is exactly the outcome we wanted, so it's a success,
+    // not a failure. Any other error is a real problem and should still propagate.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      return "alreadyExists";
+    }
+    throw err;
+}
+  console.log("Match: ", summary.id, " written to DB.")
 
   return "inserted";
 }

@@ -73,7 +73,7 @@ export interface AnalyzableMatch {
   teamB: { name: string; skill: number; players: unknown[]; facts: TeamFacts };
   durationMin: number;
   wind: WindSummary;
-  // playerLeaves: unknown[];
+  teamDeaths: unknown[];
   playerCount: number;
   gamemode: string;
   spectatorCount: number;
