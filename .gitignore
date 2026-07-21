@@ -1,2 +1,3 @@
 PROJECT_SUMMARY.md
 /node_modules
+/src/generated/prisma
