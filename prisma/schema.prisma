@@ -1,0 +1,86 @@
+// Phase 1: DB schema
+// - Scalar columns: filterable fields (gamemode, playerCount, averageOS, score, startTime)
+// - Boolean columns: one per milestone key, each indexed, for fast GET /matches?filters
+// - Json columns: opaque blobs (series, teamFacts, analysis) — never filtered at the SQL
+//   level, so no need to break them apart into columns
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+}
+
+model Match {
+  // gex's own gameID is already a stable unique identifier — using it directly as the
+  // primary key avoids introducing a redundant synthetic id.
+  id String @id
+
+  // --- filterable scalar fields ---
+  gamemode        Int
+  playerCount     Int
+  averageOS       Float
+  score           Int
+  startTime       DateTime
+  durationMinutes Int
+
+  // --- milestone flags (one indexed boolean per key from awards.js MILESTONES) ---
+  // Excludes baseRace and quickForfeit — disabled per PROJECT_SUMMARY TODOs.
+  bigBattle         Boolean @default(false)
+  comeback          Boolean @default(false)
+  backAndForth      Boolean @default(false)
+  stomp             Boolean @default(false)
+  guerillaFighters  Boolean @default(false)
+  carpalTunnel      Boolean @default(false)
+  spaceRace         Boolean @default(false)
+  earlyBombing      Boolean @default(false)
+  nailBiter         Boolean @default(false)
+  afusRush          Boolean @default(false)
+  nukeRush          Boolean @default(false)
+  gantryRush        Boolean @default(false)
+  orbitalCannons    Boolean @default(false)
+  techSpread        Boolean @default(false)
+  goliathDuel       Boolean @default(false)
+  commanderAttack   Boolean @default(false)
+  windyDay          Boolean @default(false)
+  legionMatch       Boolean @default(false)
+  upset             Boolean @default(false)
+  peanutGallery     Boolean @default(false)
+
+  // --- opaque JSON blobs, matching your existing pure-function outputs 1:1 ---
+  series      Json // per-minute array from buildSeries.js
+  teamAFacts  Json // teamFacts.A
+  teamBFacts  Json // teamFacts.B
+  analysis    Json // full per-milestone {flag, magnitude, ...} from analyzeMatch.js, incl. weight-0 milestones
+
+  // --- bookkeeping ---
+  processedAt DateTime @default(now()) // when *your* pipeline analyzed it, not gex's own timestamp
+
+  @@index([gamemode])
+  @@index([playerCount])
+  @@index([averageOS])
+  @@index([score])
+  @@index([startTime])
+  @@index([bigBattle])
+  @@index([comeback])
+  @@index([backAndForth])
+  @@index([stomp])
+  @@index([guerillaFighters])
+  @@index([carpalTunnel])
+  @@index([spaceRace])
+  @@index([earlyBombing])
+  @@index([nailBiter])
+  @@index([afusRush])
+  @@index([nukeRush])
+  @@index([gantryRush])
+  @@index([orbitalCannons])
+  @@index([techSpread])
+  @@index([goliathDuel])
+  @@index([commanderAttack])
+  @@index([windyDay])
+  @@index([legionMatch])
+  @@index([upset])
+  @@index([peanutGallery])
+}

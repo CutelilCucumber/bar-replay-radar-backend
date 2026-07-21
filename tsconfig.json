@@ -23,6 +23,8 @@
     // Stricter Typechecking Options
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
+    "allowJs": true,
+    "checkJs": false,
 
     // Style Options
     // "noImplicitReturns": true,
