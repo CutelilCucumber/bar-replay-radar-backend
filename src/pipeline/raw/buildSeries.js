@@ -70,6 +70,7 @@ export function bucketFrameStatsToSeries(
       seriesKeys: {
         army: "armyA",
         dmg: "dmgA",
+        eco: "ecoA",
         metalUsed: "metalUsedA",
         actions: "actionsA",
       },
@@ -89,6 +90,7 @@ export function bucketFrameStatsToSeries(
       seriesKeys: {
         army: "armyB",
         dmg: "dmgB",
+        eco: "ecoB",
         metalUsed: "metalUsedB",
         actions: "actionsB",
       },
@@ -302,7 +304,7 @@ function buildTeamFacts({
   }
 
   const deathEvent = teamDiedEvents.find((d) => teamIDs.has(d.teamID));
-  const lastPoint = series[series.length - 1];
+  const lastPoint = series[series.length - 2];
   const peakArmyPoint = series.reduce(
     (best, p) =>
       p[seriesKeys.army] > (best?.[seriesKeys.army] ?? -Infinity) ? p : best,
@@ -311,6 +313,11 @@ function buildTeamFacts({
   const minArmyPoint = series.reduce(
     (worst, p) =>
       p[seriesKeys.army] < (worst?.[seriesKeys.army] ?? Infinity) ? p : worst,
+    null,
+  );
+  const peakEcoPoint = series.reduce(
+    (best, p) =>
+      p[seriesKeys.eco] > (best?.[seriesKeys.eco] ?? -Infinity) ? p : best,
     null,
   );
 
@@ -322,6 +329,8 @@ function buildTeamFacts({
     peakArmyMinute: peakArmyPoint?.t ?? null,
     minArmyValue: minArmyPoint?.[seriesKeys.army] ?? 0,
     minArmyMinute: minArmyPoint?.t ?? null,
+    finalEcoValue: lastPoint?.[seriesKeys.eco] ?? 0,
+    peakEcoValue: peakEcoPoint?.[seriesKeys.eco] ?? 0,
     totalDamageDealt: lastPoint?.[seriesKeys.dmg] ?? 0,
     totalMetalUsed: lastPoint?.[seriesKeys.metalUsed] ?? 0,
     totalActions: lastPoint?.[seriesKeys.actions] ?? 0,

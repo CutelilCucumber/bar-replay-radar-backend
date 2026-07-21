@@ -18,7 +18,10 @@ export async function runBackfillSweep(gex: GexClient, log: FastifyBaseLogger): 
   // correctly starts the walk from "now".
   const startTimeBefore = oldest._min.startTime?.toISOString();
 
-  const summaries = await gex.searchMatches({ limit: PAGE_SIZE, startTimeBefore });
+  const summaries = await gex.searchMatches({
+  limit: PAGE_SIZE,
+  ...(startTimeBefore ? { startTimeBefore } : {}),
+});
 
   if (summaries.length === 0) {
     log.info("[backfill] empty page — likely reached the start of gex's history");

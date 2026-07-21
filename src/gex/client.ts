@@ -17,6 +17,7 @@ export class GexClient {
       referrerPolicy: "strict-origin-when-cross-origin",
       headers: { "User-Agent": "replay-radar-backend (discord: cutelilcucumber)" },
     });
+    console.log("Fetched from: ", url, " status: ", res.status)
 
     // gex returns 204 with an empty body for "not processed yet" — this is a valid
     // domain state, not an error, so it must never throw here.
@@ -52,6 +53,29 @@ export class GexClient {
 
     const result = await this.getJson<MatchSummary[]>(`${this.options.baseUrl}/api/match/search?${params}`);
     return result ?? [];
+  }
+
+
+  /**
+   * GET /api/match/{matchId} — single match summary, for on-demand lookup by id
+   * (as opposed to /api/match/search, which pages through many). Returns null if gex
+   * has no record of this match id at all — a genuine 404 case, distinct from
+   * getGameEvent's 204 ("exists, just not processed yet").
+   *
+   * Assumption worth double-checking against a live match id: this is typed as
+   * returning the same MatchSummary shape as one element of /api/match/search's array.
+   * If gex's single-match response has extra/different fields, only this method's
+   * generic parameter needs adjusting — nothing else depends on the assumption.
+   */
+  async getMatchById(matchId: string): Promise<MatchSummary | null> {
+    const params = new URLSearchParams({
+    includeSpectators: "true",
+    includeTeamDeaths: "true",
+    includeChat: "true",
+    includeMapDraws: "true"
+    });
+
+    return this.getJson<MatchSummary>(`${this.options.baseUrl}/api/match/${matchId}?${params}`);
   }
 
   /** GET /api/game-event/{id} — returns the discriminated 204-vs-ready result explicitly. */

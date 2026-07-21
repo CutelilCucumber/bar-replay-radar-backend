@@ -35,7 +35,7 @@ export function analyzeMatch(match) {
     teamB,
     durationMin,
     wind,
-    // playerLeaves,
+    teamDeaths,
     playerCount,
     gamemode,
     spectatorCount,
@@ -53,7 +53,7 @@ export function analyzeMatch(match) {
     comeback: comeback(series, winnerIsA),
     backAndForth: backAndForth(series),
     stomp: stomp(series),
-    // quickForfeit: quickForfeit(loserFacts, playerCount),
+    quickForfeit: quickForfeit(loserFacts, playerCount, teamDeaths),
     // baseRace: baseRace(last, durationMin, playerCount),
     guerillaFighters: guerillaFighters(teamA.facts, teamB.facts),
     carpalTunnel: carpalTunnel(
@@ -72,6 +72,7 @@ export function analyzeMatch(match) {
       10,
       windAverage,
       playerCount,
+      durationMin
     ),
     nukeRush: rushMilestone(
       teamA.facts,
@@ -80,6 +81,7 @@ export function analyzeMatch(match) {
       10,
       windAverage,
       playerCount,
+      durationMin
     ),
     gantryRush: rushMilestone(
       teamA.facts,
@@ -88,12 +90,14 @@ export function analyzeMatch(match) {
       12,
       windAverage,
       playerCount,
+      durationMin
     ),
     orbitalCannons: orbitalCannons(
       teamA.facts,
       teamB.facts,
       windAverage,
       playerCount,
+      durationMin
     ),
     techSpread: techSpread(teamA.facts, teamB.facts, isDuel),
     goliathDuel: goliathDuel(teamA.facts, teamB.facts, isDuel),
@@ -153,7 +157,8 @@ function computeScore(magnitudes, durationMin, isDuel) {
   let score = maxPositiveWeight > 0 ? (raw / maxPositiveWeight) * 120 : 0;
 
   // sweet-spot duration bonus (most watchable games run 15-40 min)
-  if (durationMin >= 15 && durationMin <= 40) score += 5;
+  const timeBonus = calculateTimeBonus(durationMin);
+  score += timeBonus;
 
   return Math.max(0, Math.min(100, Math.round(score)));
 }
@@ -165,6 +170,25 @@ function excludedKey(isDuel, key) {
   if (key === "upset") return true;
   if (key === "goliathDuel" && !isDuel) return true;
   if (key === "nailBiter" && isDuel) return true;
+}
+
+function calculateTimeBonus(durationMin) {
+  // Normalize durationMin to a value between 0 and 1
+  const normalized = clamp01((durationMin - 10) / (60 - 10));
+
+  // Define the spectrum rules
+  if (normalized >= 0 && normalized <= 0.5) {
+    // 10-30 minutes: Linear increase from 1 to 8
+    // normalized 0 (10 min) -> 1, normalized 0.5 (30 min) -> 8
+    return Math.round(normalized * 2 * 7 + 1);
+  } else if (normalized > 0.5 && normalized <= (40 - 10) / (60 - 10)) {
+    // 30-40 minutes: Fixed value of 8
+    return 8;
+  } else {
+    // 40-60 minutes: Linear decrease from 8 to 1
+    // normalized 0.5 (40 min) -> 8, normalized 1 (60 min) -> 1
+    return Math.round(8 - (normalized - 0.5) * 2 * 7);
+  }
 }
 
 function clamp01(x) {
@@ -249,27 +273,42 @@ function stomp(series) {
 }
 
 /**
- * Premature forfeit: the losing team's army was still close to its peak when
+ * Premature forfeit: the losing team's army and eco was still close to its peak when
  * they died/quit, meaning they resigned rather than got ground down.
- * Weighted more for large teams via the magnitude (bigger games -> a quick
- * quit wastes more spectator time).
+ * Weighted more for large teams via the magnitude (bigger games -> more potential to keep fighting).
  */
-// function quickForfeit(loserFacts, playerCount) {
+function quickForfeit(loserFacts, playerCount, teamDeaths) {
+  //return 0 if team didnt resign
+  if (!teamResigned(teamDeaths))return { flag: false, magnitude: 0 };
+  const deathMinute = frameToMinute(loserFacts.deathFrame);
+  // approximate "quick" based on current AV and eco vs peak.
+  const armyRetainedRatio =
+    loserFacts.peakArmyValue > 0
+      ? loserFacts.finalArmyValue / loserFacts.peakArmyValue
+      : 0;
+  const ecoRetainedRatio =
+    loserFacts.peakEcoValue > 0
+      ? loserFacts.finalEcoValue / loserFacts.peakEcoValue
+      : 0;
+  //the surrendering team must resign a combined ratio of 1.5 av, ev
+  //.85+.85, 1+.7 etc
+  const flag = (armyRetainedRatio+ecoRetainedRatio) >= 1.7 && deathMinute > 0;
+  const sizeWeight = clamp01(playerCount / 8);
+  return { flag, magnitude: clamp01((armyRetainedRatio+ecoRetainedRatio)/2 * sizeWeight) };
+}
 
-//   if (!loserFacts?.deathFrame || !loserFacts.peakArmyValue)
-//     return { flag: false, magnitude: 0 };
-//   const deathMinute = frameToMinute(loserFacts.deathFrame);
-//   // approximate army-at-death using the closest available fact: final value
-//   // recorded before death is effectively finalArmyValue, since teamFacts is
-//   // built from the full series which stops updating once a team is dead
-//   const armyRetainedRatio =
-//     loserFacts.peakArmyValue > 0
-//       ? loserFacts.finalArmyValue / loserFacts.peakArmyValue
-//       : 0;
-//   const flag = armyRetainedRatio >= 0.5 && deathMinute > 0;
-//   const sizeWeight = clamp01(playerCount / 8);
-//   return { flag, magnitude: clamp01(armyRetainedRatio * sizeWeight) };
-// }
+function teamResigned(teamDeaths) {
+  if (!teamDeaths || teamDeaths.length === 0) {
+    return false; 
+  }
+  // Find the death with the highest gameTime
+  const highestGameTimeObj = teamDeaths.reduce((prev, current) =>
+    (prev.gameTime > current.gameTime) ? prev : current
+  );
+
+  // Check if the reason is 2 (resign)
+  return highestGameTimeObj.reason === 2;
+}
 
 /**
  * significant building damage from both teams in a close time frams.
@@ -359,6 +398,8 @@ function nailBiter(winnerFacts, isDuel) {
  * Shared logic for AFUs/nuke rush: fastest matching def built by either
  * team, compared against a base-minute threshold that's tightened when wind
  * is above baseline (more energy available -> a "fast" build is faster).
+ * gex is unable to differentiate between a scaffold and built building,
+ * to improve accuracy, estimate build time based on  scaffold placement
  */
 function rushMilestone(
   factsA,
@@ -367,6 +408,7 @@ function rushMilestone(
   baseThresholdMin,
   windAverage,
   playerCount,
+  durationMin
 ) {
   if (defNames.length === 0) return { flag: false, magnitude: 0 };
   const fastestFrame = (facts) =>
@@ -374,24 +416,29 @@ function rushMilestone(
       const firstFrame = facts?.unitsCreatedByDef?.[name]?.firstFrame;
       return firstFrame != null ? Math.min(best, firstFrame) : best;
     }, Infinity);
-  const fastestMinute = frameToMinute(
+  const scaffoldMinute = frameToMinute(
     Math.min(fastestFrame(factsA), fastestFrame(factsB)),
   );
-  if (!Number.isFinite(fastestMinute)) return { flag: false, magnitude: 0 };
+  if (!Number.isFinite(scaffoldMinute)) return { flag: false, magnitude: 0 };
+  //guestimate build time based on scaffold placement time
+  const guessedBuildTime = scaffoldMinute >= 15 ? 0.5 : (16 - scaffoldMinute)/2
+  const fastestMinute = scaffoldMinute + guessedBuildTime
+  if (fastestMinute >= durationMin - 1) return { flag: false, magnitude: 0 };
   //adjust time threshhold for size and wind
   const sizeFactor = 3 - (2 * (playerCount - 2)) / (16 - 2);
   const windFactor = windAverage > 0 ? WIND_BASELINE / windAverage : 1;
   const adjustedThreshold =
     baseThresholdMin * Math.min(2, Math.max(0.5, windFactor)) * sizeFactor;
   const flag = fastestMinute <= adjustedThreshold;
-  const magnitude = clamp01(
+  let magnitude = clamp01(
     1 - (fastestMinute - adjustedThreshold) / adjustedThreshold,
   );
+  magnitude = magnitude < .3 ? .3 : magnitude
   return { flag, magnitude, fastestMinute };
 }
 
 /** Ragnarok/Calamity/Starfall rush, or 1 built total across the match. */
-function orbitalCannons(factsA, factsB, windAverage, playerCount) {
+function orbitalCannons(factsA, factsB, windAverage, playerCount, durationMin) {
   const rush = rushMilestone(
     factsA,
     factsB,
@@ -399,6 +446,7 @@ function orbitalCannons(factsA, factsB, windAverage, playerCount) {
     30,
     windAverage,
     playerCount,
+    durationMin
   );
   const totalBuilt = (facts) =>
     ORBITAL_CANNON_DEFS.reduce(
@@ -475,5 +523,8 @@ function upset(skillA, skillB, winner) {
 /* At least 10 spectators in the game */
 function peanutGallery(spectatorCount) {
   const flag = spectatorCount >= 10;
-  return { flag };
+  return { 
+    flag,
+    magnitude: flag ? 1: 0,
+  };
 }

@@ -27,11 +27,12 @@ model Match {
   durationMinutes Int
 
   // --- milestone flags (one indexed boolean per key from awards.js MILESTONES) ---
-  // Excludes baseRace and quickForfeit — disabled per PROJECT_SUMMARY TODOs.
+  // Excludes baseRace — disabled per PROJECT_SUMMARY TODOs.
   bigBattle         Boolean @default(false)
   comeback          Boolean @default(false)
   backAndForth      Boolean @default(false)
   stomp             Boolean @default(false)
+  quickForfeit      Boolean @default(false)
   guerillaFighters  Boolean @default(false)
   carpalTunnel      Boolean @default(false)
   spaceRace         Boolean @default(false)
@@ -67,6 +68,7 @@ model Match {
   @@index([comeback])
   @@index([backAndForth])
   @@index([stomp])
+  @@index([quickForfeit])
   @@index([guerillaFighters])
   @@index([carpalTunnel])
   @@index([spaceRace])
