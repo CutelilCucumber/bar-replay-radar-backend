@@ -43,6 +43,7 @@ export async function runRecentSweep(gex: GexClient, log: FastifyBaseLogger): Pr
       if (!idSet.has(summary.id)) continue;
       try {
         const result = await processMatch(gex, summary);
+      console.log( "Recent Fetch: ", gex.getRateLimiterSnapshot() )
         counts[result]++;
       } catch (err) {
         log.error({ err, matchId: summary.id }, "[recent] failed to process match");
@@ -51,7 +52,7 @@ export async function runRecentSweep(gex: GexClient, log: FastifyBaseLogger): Pr
 
     if (cutoffIndex !== -1) {
       log.info(
-        { ...counts, skippedAlreadyKnown, reason: "reached lookback window" },
+        { ...counts, skippedAlreadyKnown, reason: "reached lookback window", rateLimiter: gex.getRateLimiterSnapshot()  },
         "[recent] sweep complete",
       );
       return;

@@ -38,6 +38,7 @@ export async function runBackfillSweep(gex: GexClient, log: FastifyBaseLogger): 
   for (const summary of toProcess) {
     try {
       const result = await processMatch(gex, summary);
+      console.log( "Backfill Fetch: ", gex.getRateLimiterSnapshot() )
       counts[result]++;
     } catch (err) {
       // One bad match shouldn't kill the sweep — same resilience as matchData.js's
