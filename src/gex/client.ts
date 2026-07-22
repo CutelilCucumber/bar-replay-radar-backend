@@ -17,7 +17,7 @@ export class GexClient {
       referrerPolicy: "strict-origin-when-cross-origin",
       headers: { "User-Agent": "replay-radar-backend (discord: cutelilcucumber)" },
     });
-    console.log("Fetched from: ", url, " status: ", res.status)
+    console.log("Fetched from API with status: ", res.status)
 
     // gex returns 204 with an empty body for "not processed yet" — this is a valid
     // domain state, not an error, so it must never throw here.
