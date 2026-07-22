@@ -1,6 +1,7 @@
 import type { FastifyBaseLogger } from "fastify";
 import type { GexClient } from "../gex/client";
 import { prisma } from "../db/client";
+import { filterUnknownMatchIds } from "../db/queries";
 import { processMatch } from "../pipeline/processMatch";
 
 const PAGE_SIZE = 100; // gex caps `limit` at 100 server-side
@@ -28,9 +29,13 @@ export async function runBackfillSweep(gex: GexClient, log: FastifyBaseLogger): 
     return;
   }
 
+    const idsToProcess = await filterUnknownMatchIds(summaries.map((s) => s.id));
+  const idSet = new Set(idsToProcess);
+  const toProcess = summaries.filter((s) => idSet.has(s.id));
+ 
   const counts = { inserted: 0, notProcessedYet: 0, insufficientData: 0, alreadyExists: 0 };
 
-  for (const summary of summaries) {
+  for (const summary of toProcess) {
     try {
       const result = await processMatch(gex, summary);
       counts[result]++;
