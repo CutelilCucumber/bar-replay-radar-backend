@@ -1,14 +1,22 @@
-import { RateLimiter } from "./rateLimiter";
+import { RateLimiter, type RateLimiterLogger, type RateLimiterSnapshot } from "./rateLimiter.js";
 import type { GameEventResult, MatchSearchFilters, MatchSummary } from "../types/gex.js";
 
 export interface GexClientOptions {
   baseUrl: string;
+  logger?: RateLimiterLogger;
 }
 
 export class GexClient {
-  private readonly rateLimiter = new RateLimiter(300, 1);
+  private readonly rateLimiter: RateLimiter;
 
-  constructor(private readonly options: GexClientOptions) {}
+  constructor(private readonly options: GexClientOptions) {
+    this.rateLimiter = new RateLimiter(300, 1, options.logger);
+  }
+
+  /** Non-consuming read of current rate-limiter state — for periodic sweep-level logging. */
+  getRateLimiterSnapshot(): RateLimiterSnapshot {
+    return this.rateLimiter.getSnapshot();
+  }
 
   private async getJson<T>(url: string): Promise<T | null> {
     await this.rateLimiter.acquire();
@@ -17,7 +25,7 @@ export class GexClient {
       referrerPolicy: "strict-origin-when-cross-origin",
       headers: { "User-Agent": "replay-radar-backend (discord: cutelilcucumber)" },
     });
-    console.log("Fetched from API with status: ", res.status)
+
 
     // gex returns 204 with an empty body for "not processed yet" — this is a valid
     // domain state, not an error, so it must never throw here.
