@@ -110,7 +110,7 @@ function buildWhere(query: ListQuery): Prisma.MatchWhereInput {
 function toRecord(row: Prisma.MatchGetPayload<Record<string, never>>) {
   return {
     id: row.id,
-    map: (row as Record<string, unknown>).map ?? null, // add once your `map` migration lands
+    map: String(row.map),
     gamemode: String(row.gamemode),
     playerCount: row.playerCount,
     averageOS: row.averageOS,
@@ -118,7 +118,7 @@ function toRecord(row: Prisma.MatchGetPayload<Record<string, never>>) {
     startTime: row.startTime.toISOString(),
     teamA: { name: "Ally Team A", players: [] as unknown[], facts: row.teamAFacts },
     teamB: { name: "Ally Team B", players: [] as unknown[], facts: row.teamBFacts },
-    winner: (row as Record<string, unknown>).winner ?? null, // add once your `winner` migration lands
+    winner: String(row.winner),
     series: row.series,
     score: row.score,
     analysis: row.analysis,
