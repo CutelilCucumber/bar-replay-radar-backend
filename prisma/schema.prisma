@@ -19,6 +19,8 @@ model Match {
   id String @id
 
   // --- filterable scalar fields ---
+  map             String
+  winner          String
   gamemode        Int
   playerCount     Int
   averageOS       Float

@@ -104,6 +104,8 @@ const [allyA, allyB] = allyIds as [number, number];
   await prisma.match.create({
     data: {
       id: summary.id,
+      map: String(summary.map ?? "unknown map"),
+      winner: String(winnerSide ?? "unknown"),
       gamemode: summary.gamemode ?? 0,
       playerCount: analyzable.playerCount,
       averageOS: summary.averageOS ?? 0,
