@@ -22,7 +22,7 @@ const listQuerySchema = {
   properties: {
     limit: { type: "integer", minimum: 1, maximum: 100, default: 100 },
     offset: { type: "integer", minimum: 0, default: 0 },
-    sortBy: { type: "string", enum: ["startTime", "score"], default: "startTime" },
+    sortBy: { type: "string", enum: ["startTime", "score", "durationMinutes"], default: "startTime" },
     sortDir: { type: "string", enum: ["asc", "desc"], default: "desc" },
     gamemode: { type: "integer" },
     playerCountMin: { type: "integer" },
@@ -31,6 +31,8 @@ const listQuerySchema = {
     averageOSMax: { type: "number" },
     scoreMin: { type: "integer" },
     scoreMax: { type: "integer" },
+    durationMinutesMin: { type: "integer" },
+    durationMinutesMax: { type: "integer" },
     // Inclusive-before / inclusive-after date range on startTime.
     startTimeAfter: { type: "string", format: "date-time" },
     startTimeBefore: { type: "string", format: "date-time" },
@@ -43,7 +45,7 @@ const listQuerySchema = {
 interface ListQuery {
   limit: number;
   offset: number;
-  sortBy: "startTime" | "score";
+  sortBy: "startTime" | "score" | "durationMinutes";
   sortDir: "asc" | "desc";
   gamemode?: number;
   playerCountMin?: number;
@@ -52,6 +54,8 @@ interface ListQuery {
   averageOSMax?: number;
   scoreMin?: number;
   scoreMax?: number;
+  durationMinutesMin?: number;
+  durationMinutesMax?: number;
   startTimeAfter?: string;
   startTimeBefore?: string;
   [milestoneKey: string]: unknown;
@@ -83,6 +87,13 @@ function buildWhere(query: ListQuery): Prisma.MatchWhereInput {
     };
   }
 
+  if (query.durationMinutesMin !== undefined || query.durationMinutesMax !== undefined) {
+    where.durationMinutes = {
+      ...(query.durationMinutesMin !== undefined ? { gte: query.durationMinutesMin } : {}),
+      ...(query.durationMinutesMax !== undefined ? { lte: query.durationMinutesMax } : {}),
+    };
+  }
+
   if (query.startTimeAfter !== undefined || query.startTimeBefore !== undefined) {
     where.startTime = {
       ...(query.startTimeAfter !== undefined ? { gte: new Date(query.startTimeAfter) } : {}),
@@ -110,7 +121,7 @@ function buildWhere(query: ListQuery): Prisma.MatchWhereInput {
 function toRecord(row: Prisma.MatchGetPayload<Record<string, never>>) {
   return {
     id: row.id,
-    map: String(row.map),
+    map: (row as Record<string, unknown>).map ?? null, // add once your `map` migration lands
     gamemode: String(row.gamemode),
     playerCount: row.playerCount,
     averageOS: row.averageOS,
@@ -118,7 +129,7 @@ function toRecord(row: Prisma.MatchGetPayload<Record<string, never>>) {
     startTime: row.startTime.toISOString(),
     teamA: { name: "Ally Team A", players: [] as unknown[], facts: row.teamAFacts },
     teamB: { name: "Ally Team B", players: [] as unknown[], facts: row.teamBFacts },
-    winner: String(row.winner),
+    winner: (row as Record<string, unknown>).winner ?? null, // add once your `winner` migration lands
     series: row.series,
     score: row.score,
     analysis: row.analysis,
