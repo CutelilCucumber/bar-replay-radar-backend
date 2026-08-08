@@ -45,23 +45,27 @@ export async function processMatch(gex: GexClient, summary: MatchSummary): Promi
   const eventResult = await gex.getGameEvent(summary.id);
   if (eventResult.status === "notProcessed") return "notProcessedYet";
 
-  const matchJson = await gex.getMatchById(summary.id);
+  const matchJson = "teamDeaths" in summary ? summary
+   : await gex.getMatchById(summary.id);
+
   if (!matchJson) {
     throw new Error(`gex has no match record for id ${summary.id}`);
   }
 
   const eventJson = eventResult.data;
-  
   const teamStats = eventJson.teamStats ?? [];
   const { players, allyTeams } = summary;
+
   if (teamStats.length === 0 || allyTeams.length < 2) return "insufficientData";
 
   const durationMin = Math.round(summary.durationMs / 60000);
   const dataset = buildMatchDataset(eventJson, players, allyTeams, durationMin);
+  
   if (dataset.series.length < 3) return "insufficientData";
 
   //nothing in GetSortedAllyIds guarantees at least 2 elements and must be assigned
   const allyIds = getSortedAllyIds(allyTeams);
+
 if (allyIds.length < 2) return "insufficientData";
 const [allyA, allyB] = allyIds as [number, number];
   const winnerSide = getWinnerSide(allyTeams, allyIds);

@@ -69,14 +69,11 @@ export class GexClient {
    * (as opposed to /api/match/search, which pages through many). Returns null if gex
    * has no record of this match id at all — a genuine 404 case, distinct from
    * getGameEvent's 204 ("exists, just not processed yet").
-   *
-   * Assumption worth double-checking against a live match id: this is typed as
-   * returning the same MatchSummary shape as one element of /api/match/search's array.
-   * If gex's single-match response has extra/different fields, only this method's
-   * generic parameter needs adjusting — nothing else depends on the assumption.
    */
   async getMatchById(matchId: string): Promise<MatchSummary | null> {
     const params = new URLSearchParams({
+      includePlayers: "true",
+    includeAllyTeams: "true",
     includeSpectators: "true",
     includeTeamDeaths: "true",
     includeChat: "true",
