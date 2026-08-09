@@ -10,10 +10,14 @@ RUN npm install
 
 COPY . .
 
-# Prisma 7 + @prisma/adapter-pg means the app talks to Postgres via a pure-JS driver,
-# not Prisma's native query-engine binary — so this generate step doesn't need to
-# download a platform-specific binary at all, which keeps the image simpler and the
-# build less fragile across architectures than Prisma 6-style setups were.
+# prisma.config.ts loads for every CLI command, including `generate`, and calls
+# env("SUPABASE_DIRECT_URL") which throws immediately on a missing variable. Northflank
+# (like most platforms) only injects real runtime env vars once the container starts —
+# not during this build step — so without a placeholder, config-loading fails before
+# `generate` ever gets to do anything. `generate` itself never actually connects to the
+# DB with this value, so a placeholder is safe here; the REAL value comes from
+# Northflank's runtime env vars when the container starts for real.
+ENV SUPABASE_DIRECT_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"
 RUN npx prisma generate
 
 ENV NODE_ENV=production
