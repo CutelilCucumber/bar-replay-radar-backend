@@ -11,13 +11,6 @@ import matchesRoutes from "./routes/matches";
 export function buildApp() {
   const fastify = Fastify({ logger: true });
 
-  // No `await` here, deliberately — same as the three registrations below. Fastify
-  // queues every fastify.register(...) call via its internal loader (avvio) and
-  // resolves them all, in order, before the server starts accepting requests. Awaiting
-  // register() individually at the top level isn't wrong exactly, but it requires
-  // buildApp() itself to become async, which then requires server.ts to await it too —
-  // more churn than the fix needs, since plain unawaited register() already guarantees
-  // correct ordering here.
   fastify.register(cors, {
     origin: "http://localhost:5173",
   });
@@ -28,6 +21,20 @@ export function buildApp() {
   fastify.register(gexClientPlugin);
   fastify.register(scannerPlugin);
   fastify.register(matchesRoutes);
+
+  // Plain liveness endpoint — no DB call, deliberately. Northflank's health check just
+  // needs to know the process is up and Fastify is answering requests; a DB round trip
+  // here would make the health check itself a point of failure (e.g. Supabase blips
+  // shouldn't make Northflank think the whole service is down and restart it).
+  // Exposes the rate limiter snapshot too — handy to glance at without digging through
+  // logs, and gex.getRateLimiterSnapshot() is a non-consuming read, so this is free to
+  // hit as often as you like.
+  fastify.get("/health", async (request, reply) => {
+    return reply.code(200).send({
+      status: "ok",
+      rateLimiter: fastify.gex?.getRateLimiterSnapshot() ?? null,
+    });
+  });
 
   return fastify;
 }
