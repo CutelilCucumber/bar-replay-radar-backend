@@ -9,6 +9,7 @@ frontend can query/filter without hitting gex directly.
 - **TypeScript** (`tsx` for dev, no build step)
 - **Fastify** — HTTP server, plugin-based
 - **Prisma 7** (with `@prisma/adapter-pg`) — Postgres ORM, hosted on **Supabase**
+- **@fastify/cors** — for the frontend dev server
 
 ## Setup
 
@@ -26,6 +27,18 @@ npm run dev             # tsx watch src/server.ts
 |---|---|---|---|
 | `SUPABASE_DATABASE_URL` | 6543 (pooled) | the running app (`src/db/client.ts`) | needs `?pgbouncer=true` appended |
 | `SUPABASE_DIRECT_URL` | 5432 (direct) | Prisma CLI only (`prisma.config.ts`) | pgbouncer's transaction pooling can't run migrations |
+
+`prisma.config.ts` and the running app load `.env` independently — the CLI loads it via
+`import "dotenv/config"` in `prisma.config.ts` itself, but `src/server.ts` needs the same
+import as its own first line, or `process.env` is empty when the app actually starts.
+
+### Optional env vars
+
+| Var | Default | Purpose |
+|---|---|---|
+| `PORT` | `3000` | HTTP port |
+| `HOST` | `0.0.0.0` | bind address |
+| `ENABLE_BACKFILL` | `true` (unset = on) | set to `"false"` to run with only the recent sweeper — see "Disk space" below |
 
 ## Architecture
 
@@ -48,40 +61,34 @@ src/
 
 ### Scanning strategy
 
-Two independent sweepers, both started from `onReady` in `plugins/scanner.ts` and run
-via **recursive `setTimeout`, not `setInterval`** (a sweep can take longer than its
-interval, since every gex fetch inside it is rate-limited to ~1/sec — `setInterval`
-would stack overlapping sweeps against the same limiter):
+Two independent sweepers, both started from `onReady` in `plugins/scanner.ts` and run via recursive `setTimeout`
 
-- **Backfill** (every 5s) — cursors backward through history using `MIN(startTime)`
-  already in the DB as the `startTimeBefore` filter. Never revisits a match once it's
-  in the DB.
-- **Recent** (every 6h, 7h lookback) — re-walks from "now" back ~7 hours to catch
-  matches that were `204` (not yet processed by gex) during backfill's pass, or landed
-  after backfill had already moved past that point in time. The 1-hour overlap beyond
-  the 6h cadence covers a match still mid-processing at the tail end of one run.
+- **Backfill** (gated by `ENABLE_BACKFILL`) — cursors backward through history
+  using `MIN(startTime)` already in the DB as the `startTimeBefore` filter. Never
+  revisits a match once it's in the DB.
+- **Recent** (every 6h, 7h lookback, always on) — re-walks from "now" back ~7 hours to
+  catch matches that were `204` (not yet processed by gex) during backfill's pass, or
+  landed after backfill had already moved past that point in time. The 1-hour overlap
+  beyond the 6h cadence covers a match still mid-processing at the tail end of one run.
 
 Both bulk-check match ids against the DB (`db/queries.ts`) **before** spending any
 rate-limited API call, and both share one `RateLimiter` instance via `fastify.gex`.
 
-### Known, accepted race condition
-
-The two sweepers can occasionally reach the *same brand-new* match id concurrently
-(most likely right at server startup, when backfill has no cursor yet). `processMatch`
-catches the resulting Postgres unique-constraint violation (`P2002`) and treats it as
-success — the row exists, which is the desired outcome, so it's not treated as an
-error. This is a deliberate "make duplicate work harmless" fix, not a "prevent the
-race" fix; preventing it outright would need real cross-process coordination (e.g. an
-advisory lock) for a race that's rare and cheap to absorb.
-
-### gex API contract, briefly
+### gex API
 
 - 300-request bucket, refills 1/sec, 1 concurrent request — enforced by
   `gex/rateLimiter.ts`, shared across the whole app via `fastify.gex`.
 - `GET /api/game-event/{id}` returns **204** if the match hasn't been processed yet.
   Modeled as a discriminated union (`GameEventResult`), not a thrown error — see
   `types/gex.ts`.
-- Every `GameOutput` field beyond the id is opt-in via an `include*` query flag.
+- Every `GameOutput` field beyond the id is opt-in via an `include*` query flag —
+  and this applies separately to **both** `/api/game-event/{id}` and
+  `/api/match/{id}` (the single-match lookup used by the on-demand analyze route).
+  They gate different field sets with different flags; a response missing `teamStats`
+  from `/api/match/{id}` doesn't mean the match lacks data, it means the right
+  `include*` param wasn't passed. Getting this wrong silently produces
+  `insufficientData` results for perfectly valid matches — see `gex/client.ts`'s
+  `getMatchById` for the params that turned out to be required.
 - `unitsCreated` fires on construction **start**, not completion.
 
 ## API
@@ -91,9 +98,11 @@ advisory lock) for a race that's rare and cheap to absorb.
 Paginated, filtered match list. Query params:
 
 - `limit` (default 100, max 100), `offset`
-- `sortBy` (`startTime` | `score`, default `startTime`), `sortDir` (`asc` | `desc`, default `desc`)
+- `sortBy` (`startTime` | `score` | `durationMinutes`, default `startTime`), `sortDir`
+  (`asc` | `desc`, default `desc`)
 - `gamemode`
-- `playerCountMin`/`Max`, `averageOSMin`/`Max`, `scoreMin`/`Max`
+- `playerCountMin`/`Max`, `averageOSMin`/`Max`, `scoreMin`/`Max`,
+  `durationMinutesMin`/`Max`
 - `startTimeAfter`/`Before` (ISO date-time)
 - One boolean param per milestone (e.g. `?stomp=true&comeback=false`) — the full list is
   derived from `pipeline/raw/awards.js`, not hardcoded in the route
@@ -112,10 +121,21 @@ gex (`GET /api/match/{id}`, not the search endpoint) and analyzes it.
 | gex hasn't processed it yet | 202 |
 | Insufficient data to analyze | 422 |
 
-## Known gaps / TODOs
+## Disk space
 
-- `unitDefsById` is intentionally not persisted (static per-game-version data, not
-  per-match; nothing downstream reads it off the raw match record).
+Supabase's free tier will fill up well before the full match history is backfilled.
+Current approach, deploy with `ENABLE_BACKFILL=false` so only the recent sweeper (which
+has a small, bounded footprint — a fixed 7h lookback window, not unbounded history)
+keeps running. `POST /matches/:id/analyze` remains available as an on-demand fallback
+for any older match backfill never reached. Supabase has no built-in "auto-prune when
+near full" feature — it just goes read-only at quota, so this has to be managed
+proactively rather than reactively.
+
+## TODOs
+
 - `raw/awards.js` is a hand-maintained, lucide-react-stripped copy of the frontend's
   milestone config — must be kept in sync by hand (key + weight only) whenever the
-  frontend's list changes.
+  frontend's list changes. A stale copy here causes a `NaN` score, not an error — worth
+  remembering if scores ever look wrong after a milestone edit.
+- `baseRace`, `nonstandard game`, `artistic players`, are possible awards to build for sorting.
+- No automated pruning/retention job yet — see "Disk space" above.
