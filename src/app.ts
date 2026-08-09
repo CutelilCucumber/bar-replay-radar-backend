@@ -12,7 +12,7 @@ export function buildApp() {
   const fastify = Fastify({ logger: true });
 
   fastify.register(cors, {
-    origin: process.env.FRONTEND_URL,
+    origin: process.env.FRONTEND_URL ?? "http://localhost:5173",
   });
 
   // Registration order matters: gexClientPlugin decorates fastify.gex, which both
