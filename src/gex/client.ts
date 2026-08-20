@@ -73,11 +73,12 @@ export class GexClient {
   async getMatchById(matchId: string): Promise<MatchSummary | null> {
     const params = new URLSearchParams({
       includePlayers: "true",
-    includeAllyTeams: "true",
-    includeSpectators: "true",
-    includeTeamDeaths: "true",
-    includeChat: "true",
-    includeMapDraws: "true"
+      includeTeams: "true",
+      includeAllyTeams: "true",
+      includeSpectators: "true",
+      includeTeamDeaths: "true",
+      includeChat: "true",
+      includeMapDraws: "true"
     });
 
     return this.getJson<MatchSummary>(`${this.options.baseUrl}/api/match/${matchId}?${params}`);

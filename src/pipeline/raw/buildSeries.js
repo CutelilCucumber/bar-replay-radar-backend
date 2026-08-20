@@ -6,11 +6,6 @@ const BUCKET_FRAMES = 60 * FRAMES_PER_SECOND; // frames per 1-minute bucket
  * a per-minute A/B time series, plus per-team "facts" that aren't naturally
  * time-bucketed (commander deaths, unit diversity, rush timings, etc).
  *
- * Requires the event JSON to have been fetched with (at least):
- * includeTeamStats, includeExtraStats, includeWindUpdates, includeUnitsCreated,
- * includeUnitsKilled, includeUnitDamage, includeUnitDefs, includeUnitResources,
- * includeFactoryUnitCreate, includeTeamDiedEvents, includeCommanderPositionUpdates.
- *
  * @param {object} eventJson - GameOutput from /api/game-event/:id
  * @param {Array} players - BarMatchPlayer[], used to map teamID -> allyTeamID
  * @param {Array} allyTeams - BarMatchAllyTeam[] for this match
