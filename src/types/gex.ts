@@ -28,8 +28,15 @@ export interface MatchSummary {
   teamDeaths?: unknown[];
   spectators?: unknown[];
   mapDraws?: unknown[];
-  multiplier_metalextraction: number;
-  multiplier_energyproduction: number;
+  gameSettings : {
+    multiplier_metalextraction: number;
+    multiplier_energyproduction: number;
+    scavunitsforplayers: boolean;
+    experimentalextraunits: boolean;
+    tweakdefs?: boolean;
+    tweakunits?: boolean;
+  }
+
 }
 
 export interface MatchSearchFilters {

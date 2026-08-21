@@ -106,7 +106,9 @@ export function analyzeMatch(match) {
     legionMatch: legionMatch(match),
     upset: upset(teamA.skill, teamB.skill, winner),
     peanutGallery: peanutGallery(spectatorCount),
-    ecoBoost: ecoBoost(match)
+    ecoBoost: ecoBoost(match),
+    extraUnits: extraUnits(match),
+    modded: modded(match)
   };
 
   const flags = {};
@@ -172,6 +174,8 @@ function excludedKey(isDuel, key) {
   if (key === "goliathDuel" && !isDuel) return true;
   if (key === "nailBiter" && isDuel) return true;
   if (key === "ecoBoost") return true;
+  if (key === "extraUnits") return true;
+  if (key === "modded") return true;
 }
 
 function calculateTimeBonus(durationMin) {
@@ -375,6 +379,18 @@ function legionMatch(match) {
 /** eco boost options. Weight 0 — informational only. */
 function ecoBoost(match) {
   const flag = Boolean(match.ecoBoost);
+  return { flag, magnitude: flag ? 1 : 0 };
+}
+
+/** extra unit boost options. Weight 0 — informational only. */
+function extraUnits(match) {
+  const flag = Boolean(match.extraUnits);
+  return { flag, magnitude: flag ? 1 : 0 };
+}
+
+/** modded game. Weight 0 — informational only. */
+function modded(match) {
+  const flag = Boolean(match.modded);
   return { flag, magnitude: flag ? 1 : 0 };
 }
 

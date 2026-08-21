@@ -31,4 +31,6 @@ export const MILESTONES = [
   { key: "upset", weight: 0 },
   { key: "peanutGallery", weight: 0 },
   { key: "ecoBoost", weight: 0 },
+  { key: "extraUnits", weight: 0 },
+  { key: "modded", weight: 0 },
 ];
