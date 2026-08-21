@@ -92,6 +92,7 @@ const [allyA, allyB] = allyIds as [number, number];
     teamDeaths: matchJson.teamDeaths ?? [],
     spectatorCount: matchJson.spectators?.length ?? 0,
     mapDraws: matchJson.mapDraws ?? [],
+    ecoBoost: (matchJson.multiplier_metalextraction > 1 || matchJson.multiplier_energyproduction > 1) ?? false,
     legionMatch: dataset.legionMatch,
   };
 
