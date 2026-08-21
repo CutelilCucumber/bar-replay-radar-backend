@@ -28,6 +28,8 @@ export interface MatchSummary {
   teamDeaths?: unknown[];
   spectators?: unknown[];
   mapDraws?: unknown[];
+  multiplier_metalextraction: number;
+  multiplier_energyproduction: number;
 }
 
 export interface MatchSearchFilters {

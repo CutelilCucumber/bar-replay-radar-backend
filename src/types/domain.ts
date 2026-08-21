@@ -78,6 +78,7 @@ export interface AnalyzableMatch {
   gamemode: string;
   spectatorCount: number;
   mapDraws: unknown[];
+  ecoBoost: boolean;
   legionMatch: boolean;
 }
 
