@@ -51,6 +51,7 @@ model Match {
   legionMatch       Boolean @default(false)
   upset             Boolean @default(false)
   peanutGallery     Boolean @default(false)
+  ecoBoost          Boolean @default(false)
 
   // --- opaque JSON blobs, matching your existing pure-function outputs 1:1 ---
   series      Json // per-minute array from buildSeries.js
