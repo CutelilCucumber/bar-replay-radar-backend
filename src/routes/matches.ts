@@ -200,7 +200,7 @@ export default async function matchesRoutes(fastify: FastifyInstance) {
           // this be a 200 with a null/explanatory body instead.
           return reply
             .code(422)
-            .send({ error: "match doesn't have enough data to analyze (no team stats, or too short)" });
+            .send({ error: "gex hasn't finished processing this match yet, or match doesn't have enough data to analyze" });
         case "alreadyExists": {
           // Race: another request/sweeper inserted it between our findUnique above
           // and processMatch's own check. Just return what's there now.
