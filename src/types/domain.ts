@@ -79,7 +79,9 @@ export interface AnalyzableMatch {
   spectatorCount: number;
   mapDraws: unknown[];
   ecoBoost: boolean;
+  extraUnits: boolean;
   legionMatch: boolean;
+  modded: boolean;
 }
 
 // analyzeMatch.js's return shape. `flags`'s keys are exactly the 20 milestone keys —
