@@ -4,7 +4,7 @@ import { runBackfillSweep } from "../scanner/backfillSweeper";
 import { runRecentSweep } from "../scanner/recentSweeper";
 
 const BACKFILL_INTERVAL_MS = 0;
-const RECENT_INTERVAL_MS = 0; //6 * 60 * 60 * 1000 6 hrs
+const RECENT_INTERVAL_MS = 6 * 60 * 60 * 1000; //6 hrs
 
 // Must be registered AFTER plugins/gexClient.ts — this plugin reads fastify.gex,
 // which only exists once that decorator has run.
@@ -24,7 +24,7 @@ export default fp(async function scannerPlugin(fastify: FastifyInstance) {
     } catch (err) {
       fastify.log.error({ err }, "[backfill] sweep threw");
     }
-    if (!stopping) backfillTimer = setTimeout(scheduleRecent, BACKFILL_INTERVAL_MS);
+    if (!stopping) backfillTimer = setTimeout(scheduleBackfill, BACKFILL_INTERVAL_MS);
   }
 
   async function scheduleRecent(): Promise<void> {
@@ -34,7 +34,7 @@ export default fp(async function scannerPlugin(fastify: FastifyInstance) {
     } catch (err) {
       fastify.log.error({ err }, "[recent] sweep threw");
     }
-    if (!stopping) recentTimer = setTimeout(scheduleBackfill, RECENT_INTERVAL_MS);
+    if (!stopping) recentTimer = setTimeout(scheduleRecent, RECENT_INTERVAL_MS);
   }
 
   fastify.addHook("onReady", async () => {
