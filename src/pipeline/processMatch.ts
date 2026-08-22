@@ -93,7 +93,7 @@ const [allyA, allyB] = allyIds as [number, number];
     spectatorCount: matchJson.spectators?.length ?? 0,
     mapDraws: matchJson.mapDraws ?? [],
     ecoBoost: (matchJson.gameSettings.multiplier_metalextraction > 1 || matchJson.gameSettings.multiplier_energyproduction > 1) ?? false,
-    extraUnits:  (matchJson.gameSettings.scavunitsforplayers || matchJson.gameSettings.experimentalextraunits) ?? false,
+    extraUnits:  (matchJson.gameSettings.scavunitsforplayers == 1 || matchJson.gameSettings.experimentalextraunits == 1) ?? false,
     modded:  (matchJson.gameSettings.tweakdefs || matchJson.gameSettings.tweakunits) ?? false,
     legionMatch: dataset.legionMatch,
   };
