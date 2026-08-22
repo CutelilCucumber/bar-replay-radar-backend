@@ -31,6 +31,7 @@ export interface MatchSummary {
   gameSettings : {
     multiplier_metalextraction: number;
     multiplier_energyproduction: number;
+    startmetal: number;
     scavunitsforplayers: number;
     experimentalextraunits: number;
     tweakdefs?: boolean;
