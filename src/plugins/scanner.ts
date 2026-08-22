@@ -4,7 +4,7 @@ import { runBackfillSweep } from "../scanner/backfillSweeper";
 import { runRecentSweep } from "../scanner/recentSweeper";
 
 const BACKFILL_INTERVAL_MS = 0;
-const RECENT_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const RECENT_INTERVAL_MS = 0; //6 * 60 * 60 * 1000 6 hrs
 
 // Must be registered AFTER plugins/gexClient.ts — this plugin reads fastify.gex,
 // which only exists once that decorator has run.
