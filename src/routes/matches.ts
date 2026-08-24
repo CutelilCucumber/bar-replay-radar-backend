@@ -20,7 +20,7 @@ const paramsSchema = {
 const listQuerySchema = {
   type: "object",
   properties: {
-    limit: { type: "integer", minimum: 1, maximum: 100, default: 100 },
+    limit: { type: "integer", minimum: 1, maximum: 1000, default: 20 },
     offset: { type: "integer", minimum: 0, default: 0 },
     sortBy: { type: "string", enum: ["startTime", "score", "durationMinutes"], default: "startTime" },
     sortDir: { type: "string", enum: ["asc", "desc"], default: "desc" },
