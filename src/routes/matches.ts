@@ -25,6 +25,7 @@ const listQuerySchema = {
     sortBy: { type: "string", enum: ["startTime", "score", "durationMinutes"], default: "startTime" },
     sortDir: { type: "string", enum: ["asc", "desc"], default: "desc" },
     gamemode: { type: "integer" },
+    map: { type: "string" },
     playerCountMin: { type: "integer" },
     playerCountMax: { type: "integer" },
     averageOSMin: { type: "number" },
@@ -48,6 +49,7 @@ interface ListQuery {
   sortBy: "startTime" | "score" | "durationMinutes";
   sortDir: "asc" | "desc";
   gamemode?: number;
+  map?: string;
   playerCountMin?: number;
   playerCountMax?: number;
   averageOSMin?: number;
@@ -65,6 +67,10 @@ function buildWhere(query: ListQuery): Prisma.MatchWhereInput {
   const where: Prisma.MatchWhereInput = {};
 
   if (query.gamemode !== undefined) where.gamemode = query.gamemode;
+
+  if (query.map !== undefined) {
+  where.map = { contains: query.map, mode: "insensitive" };
+}
 
   if (query.playerCountMin !== undefined || query.playerCountMax !== undefined) {
     where.playerCount = {
