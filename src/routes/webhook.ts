@@ -74,13 +74,15 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
       },
     },
     // gex webhook payloads (match + full GameOutput) can exceed Fastify's 1MB default.
-    bodyLimit: 10485760, // 10MB
+    bodyLimit: 20971520, // 20MB
   };
 
   async function handleWebhook(request: any, reply: any): Promise<void> {
     fastify.log.info({ contentType: request.headers["content-type"] }, "DEBUG webhook content-type");
+    
     const signature = request.headers[SIGNATURE_HEADER] as string | undefined;
     const rawBody = (request as unknown as { rawBody: string }).rawBody;
+    fastify.log.info({ rawBody }, "DEBUG actual webhook body");
 
     if (!signature) {
       return reply.code(401).send({ error: "missing x-gex-signature header" });
