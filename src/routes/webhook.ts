@@ -42,14 +42,24 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
   // original byte sequence (key order, whitespace, number formatting can all differ),
   // which would make every signature check fail even for genuine requests. Self-
   // contained here — no external raw-body plugin dependency required.
-  fastify.addContentTypeParser("application/json", { parseAs: "string" }, (request, body, done) => {
-    (request as unknown as { rawBody: string }).rawBody = body as string;
-    try {
-      done(null, JSON.parse(body as string));
-    } catch (err) {
-      done(err as Error, undefined);
-    }
-  });
+  //
+  // bodyLimit is set HERE, on the parser itself, not just on routeConfig below — a
+  // custom content-type parser's own size enforcement defaults to Fastify's GLOBAL
+  // body limit (1MB), and does not reliably inherit a route's bodyLimit option. Without
+  // this, a >1MB webhook payload (easily exceeded — full match + GameOutput data) would
+  // get rejected by the parser regardless of what routeConfig.bodyLimit says.
+  fastify.addContentTypeParser(
+    "application/json",
+    { parseAs: "string", bodyLimit: 10 * 1024 * 1024 }, // 10MB
+    (request, body, done) => {
+      (request as unknown as { rawBody: string }).rawBody = body as string;
+      try {
+        done(null, JSON.parse(body as string));
+      } catch (err) {
+        done(err as Error, undefined);
+      }
+    },
+  );
 
   const routeConfig = {
     schema: {
