@@ -6,6 +6,9 @@ import { runRecentSweep } from "../scanner/recentSweeper";
 const BACKFILL_INTERVAL_MS = 0;
 const RECENT_INTERVAL_MS = 6 * 60 * 60 * 1000; //6 hrs
 
+const ENABLE_BACKFILL = process.env.ENABLE_BACKFILL !== "false";
+const ENABLE_RECENT_SWEEPER = process.env.ENABLE_RECENT_SWEEPER !== "false";
+
 // Must be registered AFTER plugins/gexClient.ts — this plugin reads fastify.gex,
 // which only exists once that decorator has run.
 export default fp(async function scannerPlugin(fastify: FastifyInstance) {
@@ -38,12 +41,14 @@ export default fp(async function scannerPlugin(fastify: FastifyInstance) {
   }
 
   fastify.addHook("onReady", async () => {
-    //Backfill is disabled on deployment to preserve supabase's limited disk space
-    //TODO: make a permanant solution to limited disk space
-    if (process.env.ENABLE_BACKFILL !== "false") {
+    // Backfill is disabled on deployment to preserve supabase's limited disk space
+    // TODO: make a permanent solution to limited disk space
+    if (ENABLE_BACKFILL) {
       void scheduleBackfill();
     }
-    void scheduleRecent();
+    if (ENABLE_RECENT_SWEEPER) {
+      void scheduleRecent();
+    }
   });
 
   fastify.addHook("onClose", async () => {
