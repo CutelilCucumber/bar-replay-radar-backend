@@ -53,6 +53,14 @@ async function handleWebhook(
   const signature = request.headers["x-gex-signature"];
   const rawBody = (request as any).rawBody as Buffer;
 
+  // Parse JSON manually to handle any content-type variation
+  let event: GexWebhookEvent;
+  try {
+    event = JSON.parse(rawBody.toString("utf8"));
+  } catch (err) {
+    return reply.code(400).send({ error: "Invalid JSON body" });
+  }
+
   if (!signature) {
     return reply.code(401).send({ error: "Missing x-gex-signature header" });
   }
@@ -61,8 +69,6 @@ async function handleWebhook(
     fastify.log.warn({ signature }, "Invalid webhook signature");
     return reply.code(401).send({ error: "Invalid signature" });
   }
-
-  const event = request.body as GexWebhookEvent;
 
   fastify.log.info(
     { event: event.event, matchId: event.payload.match.id },
@@ -102,20 +108,6 @@ async function handleWebhook(
 }
 
 export default async function webhookRoutes(fastify: FastifyInstance) {
-  // Add route-level content type parser to get raw body for signature verification
-  fastify.addContentTypeParser(
-    "application/json",
-    { parseAs: "buffer" },
-    (req, body, done) => {
-      (req as any).rawBody = body;
-      try {
-        done(null, JSON.parse(body.toString()));
-      } catch (err) {
-        done(err as Error, undefined);
-      }
-    }
-  );
-
   const routeConfig = {
     schema: {
       body: {
@@ -127,6 +119,10 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
           payload: { type: "object" },
         },
       },
+    },
+    config: {
+      // Disable automatic body parsing - we'll parse manually in handler
+      rawBody: true,
     },
   };
 
