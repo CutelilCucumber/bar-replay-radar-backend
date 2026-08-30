@@ -14,7 +14,24 @@ export interface Player {
   skill?: number;
 }
 
-// One row from GET /api/match/search
+// gex's per-match game settings blob. Only the fields actually read anywhere
+// (deriveModFlags in processMatch.ts) are named; it carries many more that nothing
+// here cares about yet — [key: string]: unknown covers the rest without modeling the
+// whole settings object up front.
+export interface GameSettings {
+  multiplier_metalextraction?: number;
+  multiplier_energyproduction?: number;
+  startmetal?: number;
+  scavunitsforplayers?: number;
+  experimentalextraunits?: number;
+  tweakdefs?: unknown;
+  tweakunits?: unknown;
+  [key: string]: unknown;
+}
+
+// One row from GET /api/match/search — also the shape returned by GET /api/match/{id}
+// (getMatchById), which is a strict superset including teamDeaths/spectators/mapDraws/
+// gameSettings that search results don't carry.
 export interface MatchSummary {
   id: string;
   map?: string;
@@ -25,19 +42,11 @@ export interface MatchSummary {
   startTime: string; // ISO date-time string, as returned by gex
   players: Player[];
   allyTeams: AllyTeam[];
-  teamDeaths?: unknown[];
+  playerLeaves?: unknown[];
   spectators?: unknown[];
   mapDraws?: unknown[];
-  gameSettings : {
-    multiplier_metalextraction: number;
-    multiplier_energyproduction: number;
-    startmetal: number;
-    scavunitsforplayers: number;
-    experimentalextraunits: number;
-    tweakdefs?: boolean;
-    tweakunits?: boolean;
-  }
-
+  teamDeaths?: unknown[];
+  gameSettings?: GameSettings;
 }
 
 export interface MatchSearchFilters {
@@ -64,7 +73,11 @@ export interface GameOutput {
   unitsCreated?: unknown[];
   unitsKilled?: unknown[];
   unitDamage?: unknown[];
-  unitDefs?: unknown[];
+  // Confirmed against a real webhook payload: the field is `unitDefinitions`, not
+  // `unitDefs` — buildSeries.js's raw JS destructures `unitDefinitions` directly and
+  // has been right about the runtime shape all along; this type just had the wrong
+  // name until now.
+  unitDefinitions?: unknown[];
   unitResources?: unknown[];
   factoryUnitCreate?: unknown[];
   teamDiedEvents?: unknown[];

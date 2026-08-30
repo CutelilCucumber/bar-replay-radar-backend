@@ -3,7 +3,7 @@ import { prisma } from "../db/client";
 import { buildMatchDataset } from "./buildSeries";
 import { analyzeMatch } from "./analyzeMatch";
 import { GexClient } from "../gex/client";
-import type { AllyTeam, MatchSummary, Player } from "../types/gex";
+import type { AllyTeam, GameOutput, GameSettings, MatchSummary, Player } from "../types/gex";
 import type { AnalyzableMatch } from "../types/domain";
 
 export type ProcessResult =
@@ -31,118 +31,223 @@ function averageSkill(players: Player[], allyId: number): number {
 }
 
 /**
- * Fetches one match's event log, runs it through the pipeline, and inserts the result.
- * Mirrors matchData.js's buildMatchRecord + the caller's cache-set, but targets Postgres
- * instead of session/localStorage, and skips (rather than caches) 204/insufficient-data
- * matches so the sweepers can decide what to do with them.
+ * Derives the three mod-detection flags from gameSettings. Centralized here (rather
+ * than inline at each call site, which is where the original bug lived) for two
+ * reasons: both processMatch and processWebhookPayload need identical logic, and
+ * gameSettings itself can be entirely absent — accessing a property directly off an
+ * undefined gameSettings (as the original inline version did) throws a TypeError
+ * before the trailing `?? false` ever gets a chance to matter, since a boolean
+ * comparison chain never itself produces null/undefined for `?? false` to catch.
  */
-export async function processMatch(gex: GexClient, summary: MatchSummary): Promise<ProcessResult> {
-  // Safety net against the two sweepers racing on the same match id — cheap read before
-  // the (much more expensive, rate-limited) event fetch.
-  const existing = await prisma.match.findUnique({ where: { id: summary.id }, select: { id: true } });
-  if (existing) return "alreadyExists";
+function deriveModFlags(gameSettings: GameSettings | undefined): {
+  ecoBoost: boolean;
+  extraUnits: boolean;
+  modded: boolean;
+} {
+  if (!gameSettings) return { ecoBoost: false, extraUnits: false, modded: false };
 
-  const eventResult = await gex.getGameEvent(summary.id);
-  if (eventResult.status === "notProcessed") return "notProcessedYet";
+  const ecoBoost =
+    Number(gameSettings.multiplier_metalextraction ?? 1) > 1 ||
+    Number(gameSettings.multiplier_energyproduction ?? 1) > 1 ||
+    Number(gameSettings.startmetal ?? 0) > 1000;
 
-  const matchJson = "teamDeaths" in summary ? summary
-   : await gex.getMatchById(summary.id);
+  const extraUnits =
+    Number(gameSettings.scavunitsforplayers ?? 0) === 1 ||
+    Number(gameSettings.experimentalextraunits ?? 0) === 1;
 
-  if (!matchJson) {
-    throw new Error(`gex has no match record for id ${summary.id}`);
-  }
+  const modded = Boolean(gameSettings.tweakdefs) || Boolean(gameSettings.tweakunits);
 
-  const eventJson = eventResult.data;
-  const teamStats = eventJson.teamStats ?? [];
-  const { players, allyTeams } = summary;
+  return { ecoBoost, extraUnits, modded };
+}
 
-  if (teamStats.length === 0 || allyTeams.length < 2) return "insufficientData";
+/**
+ * Everything assembleAndInsert needs, regardless of WHERE it came from — a fetch-based
+ * path (searchMatches + getGameEvent + getMatchById, three calls) or a webhook payload
+ * (one call's worth of data, already merged). This interface is the seam between "how
+ * did we get this data" and "what do we do with it", so that seam only has to be
+ * crossed once instead of duplicated per data source.
+ */
+interface AssembleAndInsertInput {
+  id: string;
+  map?: string | undefined;
+  gamemode?: number | undefined;
+  playerCount?: number | undefined;
+  averageOS?: number | undefined;
+  durationMs: number;
+  startTime: string;
+  players: Player[];
+  allyTeams: AllyTeam[];
+  eventJson: GameOutput;
+  teamDeaths: unknown[];
+  spectatorCount: number;
+  mapDraws: unknown[];
+  gameSettings?: GameSettings | undefined;
+}
 
-  const durationMin = Math.round(summary.durationMs / 60000);
-  const dataset = buildMatchDataset(eventJson, players, allyTeams, durationMin);
-  
+async function assembleAndInsert(input: AssembleAndInsertInput): Promise<ProcessResult> {
+  const teamStats = input.eventJson.teamStats ?? [];
+  if (teamStats.length === 0 || input.allyTeams.length < 2) return "insufficientData";
+
+  const durationMin = Math.round(input.durationMs / 60000);
+  const dataset = buildMatchDataset(input.eventJson, input.players, input.allyTeams, durationMin);
   if (dataset.series.length < 3) return "insufficientData";
 
-  //nothing in GetSortedAllyIds guarantees at least 2 elements and must be assigned
-  const allyIds = getSortedAllyIds(allyTeams);
-
-if (allyIds.length < 2) return "insufficientData";
-const [allyA, allyB] = allyIds as [number, number];
-  const winnerSide = getWinnerSide(allyTeams, allyIds);
+  const allyIds = getSortedAllyIds(input.allyTeams);
+  if (allyIds.length < 2) return "insufficientData";
+  const [allyA, allyB] = allyIds as [number, number];
+  const winnerSide = getWinnerSide(input.allyTeams, allyIds);
+  const { ecoBoost, extraUnits, modded } = deriveModFlags(input.gameSettings);
 
   const analyzable: AnalyzableMatch = {
     series: dataset.series,
     winner: winnerSide,
     teamA: {
       name: "Ally Team A",
-      skill: averageSkill(players, allyA),
+      skill: averageSkill(input.players, allyA),
       players: [],
       facts: dataset.teamFacts.A,
     },
     teamB: {
       name: "Ally Team B",
-      skill: averageSkill(players, allyB),
+      skill: averageSkill(input.players, allyB),
       players: [],
       facts: dataset.teamFacts.B,
     },
     durationMin,
     wind: dataset.wind,
-    playerCount: summary.playerCount ?? players.length,
-    gamemode: String(summary.gamemode ?? ""),
-    teamDeaths: matchJson.teamDeaths ?? [],
-    spectatorCount: matchJson.spectators?.length ?? 0,
-    mapDraws: matchJson.mapDraws ?? [],
-    ecoBoost: (matchJson.gameSettings.multiplier_metalextraction > 1 || matchJson.gameSettings.multiplier_energyproduction > 1 || matchJson.gameSettings.startmetal > 1000) ?? false,
-    extraUnits:  (matchJson.gameSettings.scavunitsforplayers == 1 || matchJson.gameSettings.experimentalextraunits == 1) ?? false,
-    modded:  (matchJson.gameSettings.tweakdefs || matchJson.gameSettings.tweakunits) ?? false,
+    playerCount: input.playerCount ?? input.players.length,
+    gamemode: String(input.gamemode ?? ""),
+    teamDeaths: input.teamDeaths,
+    spectatorCount: input.spectatorCount,
+    mapDraws: input.mapDraws,
+    ecoBoost,
+    extraUnits,
+    modded,
     legionMatch: dataset.legionMatch,
   };
 
   const analysis = analyzeMatch(analyzable);
 
   // NOTE: dataset.unitDefsById (a Map) is deliberately NOT persisted here — nothing
-  // downstream of buildSeries.js reads the raw def objects (analyzeMatch works off the
-  // definitionName-keyed unitsCreatedByDef already inside teamFacts), and schema.prisma
-  // has no column for it. If the frontend later needs per-unit def lookups, that's static
-  // per game-version data better served by its own small reference table than duplicated
-  // into every match row — flagging this rather than deciding it silently.
+  // downstream of buildSeries.js reads the raw def objects, and schema.prisma has no
+  // column for it. Static per-game-version data, not per-match — see earlier discussion.
 
   try {
-  await prisma.match.create({
-    data: {
-      id: summary.id,
-      map: String(summary.map ?? "unknown map"),
-      winner: String(winnerSide ?? "unknown"),
-      gamemode: summary.gamemode ?? 0,
-      playerCount: analyzable.playerCount,
-      averageOS: summary.averageOS ?? 0,
-      score: analysis.score,
-      startTime: new Date(summary.startTime),
-      durationMinutes: durationMin,
-      // `analysis.flags` keys are exactly the 20 milestone keys, matching schema.prisma's
-      // boolean columns 1:1 — Prisma throws a clear validation error immediately if this
-      // ever drifts (e.g. a milestone renamed in awards.js but not in the schema).
-      ...analysis.flags,
-      series: dataset.series as unknown as Prisma.InputJsonValue,
-      teamAFacts: dataset.teamFacts.A as unknown as Prisma.InputJsonValue,
-      teamBFacts: dataset.teamFacts.B as unknown as Prisma.InputJsonValue,
-      analysis: analysis as unknown as Prisma.InputJsonValue,
-    },
-  });
-} catch (err) {
-    // The findUnique check above narrows the race window but can't close it: backfill
-    // and recent sweepers run as two independent async loops, both kicked off from the
-    // same onReady hook, and on a fresh DB backfill's first sweep (no cursor yet) covers
-    // almost the same window as the recent sweeper's. Both can reach this point for the
-    // same match id before either has committed. P2002 here means someone else won that
-    // race — the row exists, which is exactly the outcome we wanted, so it's a success,
-    // not a failure. Any other error is a real problem and should still propagate.
+    await prisma.match.create({
+      data: {
+        id: input.id,
+        map: String(input.map ?? "unknown map"),
+        winner: String(winnerSide ?? "unknown"),
+        gamemode: input.gamemode ?? 0,
+        playerCount: analyzable.playerCount,
+        averageOS: input.averageOS ?? 0,
+        score: analysis.score,
+        startTime: new Date(input.startTime),
+        durationMinutes: durationMin,
+        // `analysis.flags` keys are exactly the 20 milestone keys, matching
+        // schema.prisma's boolean columns 1:1.
+        ...analysis.flags,
+        series: dataset.series as unknown as Prisma.InputJsonValue,
+        teamAFacts: dataset.teamFacts.A as unknown as Prisma.InputJsonValue,
+        teamBFacts: dataset.teamFacts.B as unknown as Prisma.InputJsonValue,
+        analysis: analysis as unknown as Prisma.InputJsonValue,
+      },
+    });
+  } catch (err) {
+    // Same idempotency reasoning as before — now with a THIRD potential source of
+    // concurrent inserts: the webhook can fire for a match at almost the same moment
+    // either sweeper independently discovers it. Still cheap to absorb, same as the
+    // original two-sweeper race.
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
       return "alreadyExists";
     }
     throw err;
-}
-  console.log("Match: ", summary.id, " written to DB.")
+  }
 
   return "inserted";
+}
+
+/**
+ * Fetch-based path, used by both sweepers: fetches a match's event log (and, if the
+ * summary doesn't already carry it, the extra teamDeaths/spectators/mapDraws fields)
+ * from gex, then hands off to the shared assembleAndInsert core.
+ */
+export async function processMatch(gex: GexClient, summary: MatchSummary): Promise<ProcessResult> {
+  const existing = await prisma.match.findUnique({ where: { id: summary.id }, select: { id: true } });
+  if (existing) return "alreadyExists";
+
+  const eventResult = await gex.getGameEvent(summary.id);
+  if (eventResult.status === "notProcessed") return "notProcessedYet";
+
+  // Only re-fetch via getMatchById when summary doesn't already carry these fields
+  // (true when summary came from searchMatches; false when it already came from
+  // getMatchById, e.g. via the on-demand /matches/:id/analyze route).
+  const matchJson = "teamDeaths" in summary ? summary : await gex.getMatchById(summary.id);
+  if (!matchJson) {
+    throw new Error(`gex has no match record for id ${summary.id}`);
+  }
+
+  return assembleAndInsert({
+    id: summary.id,
+    map: summary.map,
+    gamemode: summary.gamemode,
+    playerCount: summary.playerCount,
+    averageOS: summary.averageOS,
+    durationMs: summary.durationMs,
+    startTime: summary.startTime,
+    players: summary.players,
+    allyTeams: summary.allyTeams,
+    eventJson: eventResult.data,
+    teamDeaths: matchJson.teamDeaths ?? [],
+    spectatorCount: matchJson.spectators?.length ?? 0,
+    mapDraws: matchJson.mapDraws ?? [],
+    gameSettings: matchJson.gameSettings,
+  });
+}
+
+/**
+ * Webhook path: the payload already contains everything (per the maintainer) — no gex
+ * fetch, no rate limiter involvement at all. See types/gexWebhook.ts for the caveat
+ * that this payload shape is a best guess pending a real example from the maintainer;
+ * this function's field mapping will need adjusting once that's confirmed.
+ */
+export async function processWebhookPayload(payload: {
+  id: string;
+  map?: string | undefined;
+  gamemode?: number | undefined;
+  playerCount?: number | undefined;
+  averageOS?: number | undefined;
+  durationMs: number;
+  startTime: string;
+  players: Player[];
+  allyTeams: AllyTeam[];
+  teamStats?: unknown[] | null;
+  teamDeaths?: unknown[] | undefined;
+  spectators?: unknown[] | undefined;
+  mapDraws?: unknown[] | undefined;
+  gameSettings?: GameSettings | undefined;
+  [key: string]: unknown;
+}): Promise<ProcessResult> {
+  const existing = await prisma.match.findUnique({ where: { id: payload.id }, select: { id: true } });
+  if (existing) return "alreadyExists";
+
+  return assembleAndInsert({
+    id: payload.id,
+    map: payload.map,
+    gamemode: payload.gamemode,
+    playerCount: payload.playerCount,
+    averageOS: payload.averageOS,
+    durationMs: payload.durationMs,
+    startTime: payload.startTime,
+    players: payload.players,
+    allyTeams: payload.allyTeams,
+    // The payload IS the GameOutput too, per the maintainer — cast rather than
+    // re-fetch. Field names beyond teamStats (unitsCreated, windUpdates, etc.) are
+    // assumed to match GameOutput's shape; confirm against a real payload.
+    eventJson: payload as unknown as GameOutput,
+    teamDeaths: payload.teamDeaths ?? [],
+    spectatorCount: payload.spectators?.length ?? 0,
+    mapDraws: payload.mapDraws ?? [],
+    gameSettings: payload.gameSettings,
+  });
 }
