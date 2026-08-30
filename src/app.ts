@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import gexClientPlugin from "./plugins/gexClient";
 import scannerPlugin from "./plugins/scanner";
 import matchesRoutes from "./routes/matches";
+import webhookRoutes from "./routes/webhook";
 
 /**
  * Builds the app without starting it listening. Kept separate from server.ts so an
@@ -15,12 +16,26 @@ export function buildApp() {
     origin: process.env.FRONTEND_URL ?? "http://localhost:5173",
   });
 
+  fastify.addContentTypeParser(
+    "application/json",
+    { parseAs: "buffer" },
+    (req, body, done) => {
+      (req as any).rawBody = body;
+      try {
+        done(null, JSON.parse(body.toString()));
+      } catch (err) {
+        done(err as Error, undefined);
+      }
+    }
+  );
+
   // Registration order matters: gexClientPlugin decorates fastify.gex, which both
   // scannerPlugin (the sweepers) and matchesRoutes (the on-demand analyze endpoint)
   // read — it must be registered first, or those reads happen against `undefined`.
   fastify.register(gexClientPlugin);
   fastify.register(scannerPlugin);
   fastify.register(matchesRoutes);
+  fastify.register(webhookRoutes);
 
   // Plain liveness endpoint — no DB call, deliberately. Northflank's health check just
   // needs to know the process is up and Fastify is answering requests; a DB round trip
