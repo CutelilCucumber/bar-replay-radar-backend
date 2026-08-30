@@ -123,6 +123,8 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
     config: {
       // Disable automatic body parsing - we'll parse manually in handler
       rawBody: true,
+      // gex webhook payloads (BarMatch + GameOutput with all events) can exceed 1MB default
+      bodyLimit: 10485760, // 10MB
     },
   };
 
