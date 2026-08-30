@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import crypto from "node:crypto";
 import { processMatch } from "../pipeline/processMatch";
+import { prisma } from "../db/client";
 import type { GexWebhookEvent, GexWebhookPayload } from "../types/webhook";
 import type { MatchSummary, Gamemode } from "../types/gex";
 
@@ -31,7 +32,7 @@ function toMatchSummary(payload: GexWebhookPayload): MatchSummary {
     startTime: match.startTime,
     players: match.players.map((p) => ({
       allyTeamID: p.allyTeamID,
-      skill: p.skill,
+      ...(p.skill !== undefined ? { skill: p.skill } : {}),
     })),
     allyTeams: match.allyTeams.map((a) => ({
       allyTeamID: a.allyTeamID,
@@ -96,13 +97,13 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
 
       switch (result) {
         case "inserted": {
-          const created = await fastify.prisma.match.findUnique({
+          const created = await prisma.match.findUnique({
             where: { id: summary.id },
           });
           return reply.code(201).send({ status: "processed", match: created });
         }
         case "alreadyExists": {
-          const existing = await fastify.prisma.match.findUnique({
+          const existing = await prisma.match.findUnique({
             where: { id: summary.id },
           });
           return reply.code(200).send({ status: "exists", match: existing });
