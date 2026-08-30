@@ -78,11 +78,10 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
   };
 
   async function handleWebhook(request: any, reply: any): Promise<void> {
-    fastify.log.info({ contentType: request.headers["content-type"] }, "DEBUG webhook content-type");
     
     const signature = request.headers[SIGNATURE_HEADER] as string | undefined;
     const rawBody = (request as unknown as { rawBody: string }).rawBody;
-    fastify.log.info({ rawBody }, "DEBUG actual webhook body");
+    console.log(rawBody);
 
     if (!signature) {
       return reply.code(401).send({ error: "missing x-gex-signature header" });
