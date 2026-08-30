@@ -50,8 +50,14 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
   // get rejected by the parser regardless of what routeConfig.bodyLimit says.
   fastify.addContentTypeParser(
     ["application/json", "text/plain"],
-    { parseAs: "string", bodyLimit: 2 *10 * 1024 * 1024 }, // 20MB
+    { parseAs: "string", bodyLimit: 10 * 1024 * 1024 }, // 10MB
     (request, body, done) => {
+      // Logging HERE, not in handleWebhook: schema validation (routeConfig.schema.body)
+      // runs in Fastify's preValidation hook, which fires BEFORE the route handler is
+      // ever called. If validation rejects the body, handleWebhook never executes —
+      // any logging placed there is unreachable. This parser callback is confirmed (via
+      // the stack trace) to run regardless of what validation later decides.
+      request.log.info({ rawBody: body }, "DEBUG raw webhook body, pre-validation");
       (request as unknown as { rawBody: string }).rawBody = body as string;
       try {
         done(null, JSON.parse(body as string));
@@ -74,14 +80,12 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
       },
     },
     // gex webhook payloads (match + full GameOutput) can exceed Fastify's 1MB default.
-    bodyLimit: 20971520, // 20MB
+    bodyLimit: 10485760, // 10MB
   };
 
   async function handleWebhook(request: any, reply: any): Promise<void> {
-    
     const signature = request.headers[SIGNATURE_HEADER] as string | undefined;
     const rawBody = (request as unknown as { rawBody: string }).rawBody;
-    console.log(rawBody);
 
     if (!signature) {
       return reply.code(401).send({ error: "missing x-gex-signature header" });
