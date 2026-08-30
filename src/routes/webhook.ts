@@ -49,8 +49,8 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
   // this, a >1MB webhook payload (easily exceeded — full match + GameOutput data) would
   // get rejected by the parser regardless of what routeConfig.bodyLimit says.
   fastify.addContentTypeParser(
-    "application/json",
-    { parseAs: "string", bodyLimit: 10 * 1024 * 1024 }, // 10MB
+    ["application/json", "text/plain"],
+    { parseAs: "string", bodyLimit: 2 *10 * 1024 * 1024 }, // 20MB
     (request, body, done) => {
       (request as unknown as { rawBody: string }).rawBody = body as string;
       try {
@@ -78,6 +78,7 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
   };
 
   async function handleWebhook(request: any, reply: any): Promise<void> {
+    fastify.log.info({ contentType: request.headers["content-type"] }, "DEBUG webhook content-type");
     const signature = request.headers[SIGNATURE_HEADER] as string | undefined;
     const rawBody = (request as unknown as { rawBody: string }).rawBody;
 
