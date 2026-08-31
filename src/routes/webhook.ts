@@ -36,6 +36,12 @@ function verifySignature(rawBody: string, signature: string): boolean {
 }
 
 export default async function webhookRoutes(fastify: FastifyInstance) {
+  fastify.addHook("onRequest", async (request) => {
+    if (request.url.startsWith("/webhook/gex")) {
+      request.log.info({ url: request.url, method: request.method }, "webhook onRequest hook hit");
+    }
+  });
+
   // Captures the raw request bytes before Fastify's default JSON parser consumes them.
   // HMAC verification MUST run against the exact bytes gex sent — re-serializing a
   // parsed object (JSON.stringify(JSON.parse(body))) is not guaranteed to reproduce the
