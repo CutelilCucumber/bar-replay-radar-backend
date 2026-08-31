@@ -3,8 +3,7 @@
  *
  * Awards tracked:
  * - Resource Destroyer: player who destroyed the most resource production structures
- * - Unit Killer: player who destroyed the most mobile combat units
- * - Defense Destroyer: player who destroyed the most defensive structures
+ * - Combat Master: player who destroyed the most units AND defense structures combined
  * - Damage Efficiency: player with the best damageDealt/metalUsed ratio
  * - Traitor: player who destroyed the most allied units (friendly fire)
  * - Golden Cow: player who sweeps all awards (traitor optional)
@@ -108,39 +107,24 @@ export function computeAwards({
     }
   }
 
-  // --- Unit Killer ---
-  // Count how many mobile combat units each player destroyed
-  // Mobile combat = created units that are NOT structures (heuristic: structures don't move)
-  // We classify by checking if the killed unit was in unitsCreated (mobile) and not a known structure
+  // --- Combat Master ---
+  // Units AND defense structures destroyed (combined count).
+  // Only resource structures are excluded; defense structures count together with
+  // created mobile units (anything in unitsCreated, i.e. not a map feature).
   const createdUnitDefs = new Set(unitsCreated.map((u) => u.definitionID));
-  const unitKillsByTeam = new Map();
+  const combatKillsByTeam = new Map();
   for (const k of unitsKilled) {
     if (k.attackerTeam == null) continue;
     const def = defsById.get(k.definitionID);
     const name = def?.definitionName ?? "";
-    // Skip known structures
-    if (RESOURCE_STRUCTURE_DEFS.has(name) || DEFENSE_STRUCTURE_DEFS.has(name)) continue;
-    // Only count if it was a created unit (not a map feature)
-    if (!createdUnitDefs.has(k.definitionID)) continue;
-    unitKillsByTeam.set(
+    // Exclude resource production structures
+    if (RESOURCE_STRUCTURE_DEFS.has(name)) continue;
+    // Count defense structures, or otherwise only created units (not map features)
+    if (!DEFENSE_STRUCTURE_DEFS.has(name) && !createdUnitDefs.has(k.definitionID)) continue;
+    combatKillsByTeam.set(
       k.attackerTeam,
-      (unitKillsByTeam.get(k.attackerTeam) ?? 0) + 1,
+      (combatKillsByTeam.get(k.attackerTeam) ?? 0) + 1,
     );
-  }
-
-  // --- Defense Destroyer ---
-  // Count how many defense structures each player destroyed
-  const defenseKillsByTeam = new Map();
-  for (const k of unitsKilled) {
-    if (k.attackerTeam == null) continue;
-    const def = defsById.get(k.definitionID);
-    const name = def?.definitionName ?? "";
-    if (DEFENSE_STRUCTURE_DEFS.has(name)) {
-      defenseKillsByTeam.set(
-        k.attackerTeam,
-        (defenseKillsByTeam.get(k.attackerTeam) ?? 0) + 1,
-      );
-    }
   }
 
   // --- Damage Efficiency ---
@@ -202,18 +186,17 @@ export function computeAwards({
   };
 
   const resourceDestroyer = pickWinner(resourceKillsByTeam);
-  const unitKiller = pickWinner(unitKillsByTeam);
-  const defenseDestroyer = pickWinner(defenseKillsByTeam);
+  const combatMaster = pickWinner(combatKillsByTeam);
   const damageEfficiency = pickEfficiencyWinner();
   const traitor = pickWinner(traitorKillsByTeam);
 
   // --- Golden Cow ---
-  // Player who wins resourceDestroyer, unitKiller, defenseDestroyer, AND damageEfficiency
+  // Player who wins resourceDestroyer, combatMaster, AND damageEfficiency
   // (traitor is optional)
   let goldenCow = null;
-  const candidates = [resourceDestroyer, unitKiller, defenseDestroyer, damageEfficiency];
+  const candidates = [resourceDestroyer, combatMaster, damageEfficiency];
   const nonNull = candidates.filter((c) => c.teamID != null);
-  if (nonNull.length === 4) {
+  if (nonNull.length === 3) {
     const firstTeam = nonNull[0].teamID;
     if (nonNull.every((c) => c.teamID === firstTeam)) {
       goldenCow = { teamID: firstTeam, playerName: nonNull[0].playerName, allyTeam: nonNull[0].allyTeam };
@@ -222,8 +205,7 @@ export function computeAwards({
 
   return {
     resourceDestroyer,
-    unitKiller,
-    defenseDestroyer,
+    combatMaster,
     damageEfficiency,
     traitor,
     goldenCow,

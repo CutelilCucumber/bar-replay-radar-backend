@@ -91,8 +91,7 @@ export interface Medals {
   damageTaken: MedalEntry[];
   awards: {
     resourceDestroyer: PlayerAward;
-    unitKiller: PlayerAward;
-    defenseDestroyer: PlayerAward;
+    combatMaster: PlayerAward;
     damageEfficiency: PlayerAward;
     traitor: PlayerAward;
     goldenCow: { teamID: number; playerName: string; allyTeam: string } | null;

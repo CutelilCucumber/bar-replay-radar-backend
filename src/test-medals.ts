@@ -121,8 +121,7 @@ const awards = computeAwards({
 
 console.log("=== Awards ===");
 console.log(`  Resource Destroyer: ${awards.resourceDestroyer.playerName ?? "—"} (${awards.resourceDestroyer.value} structures)`);
-console.log(`  Unit Killer:        ${awards.unitKiller.playerName ?? "—"} (${awards.unitKiller.value} units)`);
-console.log(`  Defense Destroyer:  ${awards.defenseDestroyer.playerName ?? "—"} (${awards.defenseDestroyer.value} defenses)`);
+console.log(`  Combat Master:      ${awards.combatMaster.playerName ?? "—"} (${awards.combatMaster.value} units/defenses)`);
 console.log(`  Damage Efficiency:  ${awards.damageEfficiency.playerName ?? "—"} (${awards.damageEfficiency.value}x ratio)`);
 console.log(`  Traitor:            ${awards.traitor.playerName ?? "—"} (${awards.traitor.value} friendly kills)`);
 console.log(`  Golden Cow:         ${awards.goldenCow?.playerName ?? "—"}`);
