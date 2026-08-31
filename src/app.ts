@@ -12,9 +12,11 @@ import webhookRoutes from "./routes/webhook";
 export function buildApp() {
   const fastify = Fastify({ logger: true, bodyLimit: 52428800 }); // 50MB — gex webhook payloads (match + full GameOutput) can be large
 
-  fastify.register(cors, {
-    origin: process.env.FRONTEND_URL ?? "http://localhost:5173",
-  });
+  const allowedOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5173")
+    .split(",")
+    .map((o) => o.trim());
+
+  fastify.register(cors, { origin: allowedOrigins });
 
   // Registration order matters: gexClientPlugin decorates fastify.gex, which both
   // scannerPlugin (the sweepers) and matchesRoutes (the on-demand analyze endpoint)
