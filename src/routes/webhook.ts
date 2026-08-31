@@ -101,7 +101,8 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
     // payload, so the merge happens here at the boundary.
     const result = await processWebhookPayload({
       id: match.id,
-      map: match.mapName || match.map,
+      map: match.map,
+      mapName: match.mapName,
       gamemode: match.gamemode,
       playerCount: match.playerCount,
       averageOS: match.averageOS,

@@ -136,6 +136,7 @@ function toRecord(row: Prisma.MatchGetPayload<Record<string, never>>) {
   return {
     id: row.id,
     map: r.map ?? null,
+    mapName: r.mapName ?? null,
     gamemode: String(row.gamemode),
     playerCount: row.playerCount,
     averageOS: row.averageOS,

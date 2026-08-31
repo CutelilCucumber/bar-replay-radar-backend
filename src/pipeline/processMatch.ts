@@ -84,6 +84,7 @@ function deriveModFlags(gameSettings: GameSettings | undefined): {
 interface AssembleAndInsertInput {
   id: string;
   map?: string | undefined;
+  mapName?: string | undefined;
   gamemode?: number | undefined;
   playerCount?: number | undefined;
   averageOS?: number | undefined;
@@ -185,6 +186,7 @@ async function assembleAndInsert(input: AssembleAndInsertInput): Promise<Process
       data: {
         id: input.id,
         map: String(input.map ?? "unknown map"),
+        mapName: input.mapName ?? null,
         winner: String(winnerSide ?? "unknown"),
         gamemode: input.gamemode ?? 0,
         playerCount: analyzable.playerCount,
@@ -240,6 +242,7 @@ export async function processMatch(gex: GexClient, summary: MatchSummary): Promi
   return assembleAndInsert({
     id: summary.id,
     map: summary.map,
+    mapName: undefined, // fetch path only has display name
     gamemode: summary.gamemode,
     playerCount: summary.playerCount,
     averageOS: summary.averageOS,
@@ -265,6 +268,7 @@ export async function processMatch(gex: GexClient, summary: MatchSummary): Promi
 export async function processWebhookPayload(payload: {
   id: string;
   map?: string | undefined;
+  mapName?: string | undefined;
   gamemode?: number | undefined;
   playerCount?: number | undefined;
   averageOS?: number | undefined;
@@ -286,6 +290,7 @@ export async function processWebhookPayload(payload: {
   return assembleAndInsert({
     id: payload.id,
     map: payload.map,
+    mapName: payload.mapName,
     gamemode: payload.gamemode,
     playerCount: payload.playerCount,
     averageOS: payload.averageOS,

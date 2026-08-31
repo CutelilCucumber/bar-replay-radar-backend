@@ -20,6 +20,7 @@ model Match {
 
   // --- filterable scalar fields ---
   map             String
+  mapName         String?  // internal filename for image URLs (e.g., "onyx_cauldron_2.2.2")
   winner          String
   gamemode        Int
   playerCount     Int
