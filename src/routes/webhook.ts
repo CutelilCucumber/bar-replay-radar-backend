@@ -50,7 +50,7 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
   // get rejected by the parser regardless of what routeConfig.bodyLimit says.
   fastify.addContentTypeParser(
     ["application/json", "text/plain"],
-    { parseAs: "string", bodyLimit: 10 * 1024 * 1024 }, // 10MB
+    { parseAs: "string", bodyLimit: 50 * 1024 * 1024 }, // 50MB
     (request, body, done) => {
       (request as unknown as { rawBody: string }).rawBody = body as string;
       try {
@@ -73,7 +73,7 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
       },
     },
     // gex webhook payloads (match + full GameOutput) can exceed Fastify's 1MB default.
-    bodyLimit: 10485760, // 10MB
+    bodyLimit: 52428800, // 50MB
   };
 
   async function handleWebhook(request: any, reply: any): Promise<void> {
@@ -90,7 +90,15 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
 
     const { match, output } = request.body as GexWebhookPayload;
 
-    fastify.log.info({ matchId: match.id }, "received gex webhook");
+    fastify.log.info({
+      matchId: match.id,
+      matchKeys: Object.keys(match),
+      outputKeys: Object.keys(output),
+      hasTeamStats: Array.isArray(output.teamStats),
+      teamStatsLength: output.teamStats?.length,
+      allyTeamsLength: match.allyTeams?.length,
+      playersLength: match.players?.length,
+    }, "received gex webhook");
 
     // The whole point of the webhook: this goes straight to the payload-only path, NOT
     // processMatch (the fetch-based one) — using processMatch here would silently
@@ -120,22 +128,24 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
     switch (result) {
       case "inserted": {
         const created = await prisma.match.findUnique({ where: { id: match.id } });
+        fastify.log.info({ matchId: match.id, result: "inserted" }, "webhook match inserted");
         return reply.code(201).send({ status: "processed", match: created });
       }
       case "alreadyExists": {
         const existing = await prisma.match.findUnique({ where: { id: match.id } });
+        fastify.log.info({ matchId: match.id, result: "alreadyExists" }, "webhook match already exists");
         return reply.code(200).send({ status: "exists", match: existing });
       }
       case "insufficientData":
-        // 200, not 422: this isn't a malformed request on gex's end, and returning a
-        // 4xx here risks gex retry-storming a delivery for a match that will never
-        // become "sufficient" no matter how many times it's redelivered.
-        fastify.log.warn({ matchId: match.id }, "insufficient data, acknowledged anyway");
+        fastify.log.warn({
+          matchId: match.id,
+          result: "insufficientData",
+          teamStatsLen: output.teamStats?.length,
+          allyTeamsLen: match.allyTeams?.length,
+          playersLen: match.players?.length,
+        }, "webhook insufficient data");
         return reply.code(200).send({ status: "insufficientData" });
       case "notProcessedYet":
-        // Not reachable via this path (no getGameEvent call happens here) — handled
-        // for exhaustiveness against the shared ProcessResult type, not because it's
-        // expected to occur.
         return reply.code(202).send({ status: "notProcessedYet" });
     }
   }

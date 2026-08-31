@@ -86,14 +86,36 @@ interface AssembleAndInsertInput {
 
 async function assembleAndInsert(input: AssembleAndInsertInput): Promise<ProcessResult> {
   const teamStats = input.eventJson.teamStats ?? [];
-  if (teamStats.length === 0 || input.allyTeams.length < 2) return "insufficientData";
+  if (teamStats.length === 0 || input.allyTeams.length < 2) {
+    console.log(JSON.stringify({
+      msg: "insufficientData: teamStats or allyTeams",
+      matchId: input.id,
+      teamStatsLength: teamStats.length,
+      allyTeamsLength: input.allyTeams.length,
+    }));
+    return "insufficientData";
+  }
 
   const durationMin = Math.round(input.durationMs / 60000);
   const dataset = buildMatchDataset(input.eventJson, input.players, input.allyTeams, durationMin);
-  if (dataset.series.length < 3) return "insufficientData";
+  if (dataset.series.length < 3) {
+    console.log(JSON.stringify({
+      msg: "insufficientData: series too short",
+      matchId: input.id,
+      seriesLength: dataset.series.length,
+    }));
+    return "insufficientData";
+  }
 
   const allyIds = getSortedAllyIds(input.allyTeams);
-  if (allyIds.length < 2) return "insufficientData";
+  if (allyIds.length < 2) {
+    console.log(JSON.stringify({
+      msg: "insufficientData: allyIds",
+      matchId: input.id,
+      allyIdsLength: allyIds.length,
+    }));
+    return "insufficientData";
+  }
   const [allyA, allyB] = allyIds as [number, number];
   const winnerSide = getWinnerSide(input.allyTeams, allyIds);
   const { ecoBoost, extraUnits, modded } = deriveModFlags(input.gameSettings);

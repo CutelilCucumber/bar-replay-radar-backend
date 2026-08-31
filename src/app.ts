@@ -10,7 +10,7 @@ import webhookRoutes from "./routes/webhook";
  * integration test can `buildApp()` and use `fastify.inject(...)` without a real port.
  */
 export function buildApp() {
-  const fastify = Fastify({ logger: true, bodyLimit: 10485760 }); // 10MB — must match webhook parser/route limits
+  const fastify = Fastify({ logger: true, bodyLimit: 52428800 }); // 50MB — gex webhook payloads (match + full GameOutput) can be large
 
   fastify.register(cors, {
     origin: process.env.FRONTEND_URL ?? "http://localhost:5173",
