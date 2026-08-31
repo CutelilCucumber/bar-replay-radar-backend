@@ -26,18 +26,6 @@ function verifySignature(rawBody: string, signature: string): boolean {
   const expectedBuf = Buffer.from(expected, "hex");
   const receivedBuf = Buffer.from(signature, "hex");
 
-  console.log(JSON.stringify({
-    msg: "signature verification detail",
-    rawBodyLength: rawBody?.length,
-    rawBodyFirst100: rawBody?.slice(0, 100),
-    expectedHexLength: expected.length,
-    expectedPrefix: expected.slice(0, 16),
-    receivedHexLength: signature.length,
-    receivedPrefix: signature.slice(0, 16),
-    expectedBufLength: expectedBuf.length,
-    receivedBufLength: receivedBuf.length,
-  }));
-
   // timingSafeEqual THROWS (not returns false) on mismatched buffer lengths — a
   // forged, truncated, or placeholder-value signature header would crash this into an
   // unhandled rejection and a raw 500, instead of the clean 401 this function is meant
@@ -105,8 +93,20 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
       contentType: request.headers["content-type"],
     }, "webhook signature debug");
 
-    if (!verifySignature(rawBody, signature)) {
-      fastify.log.warn("invalid webhook signature");
+    const sigValid = verifySignature(rawBody, signature);
+
+    if (!sigValid) {
+      const expected = crypto.createHmac("sha256", getWebhookSecret()).update(rawBody ?? "", "utf8").digest("hex");
+      fastify.log.warn({
+        result: "invalid signature",
+        rawBodyLength: rawBody?.length,
+        rawBodyType: typeof rawBody,
+        expectedHexLength: expected.length,
+        expectedPrefix: expected.slice(0, 16),
+        receivedHexLength: signature.length,
+        receivedPrefix: signature.slice(0, 16),
+        contentType: request.headers["content-type"],
+      }, "webhook signature mismatch");
       return reply.code(401).send({ error: "invalid signature" });
     }
 
