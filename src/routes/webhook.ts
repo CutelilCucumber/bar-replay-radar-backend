@@ -86,10 +86,6 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
     const signature = request.headers[SIGNATURE_HEADER] as string | undefined;
     const rawBody = (request as unknown as { rawBody: string }).rawBody;
 
-    if (!signature) {
-      return reply.code(401).send({ error: "missing x-gex-signature header" });
-    }
-
     fastify.log.info({
       rawBodyType: typeof rawBody,
       rawBodyLength: rawBody?.length,
@@ -98,6 +94,10 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
       signatureLength: signature?.length,
       contentType: request.headers["content-type"],
     }, "webhook signature debug");
+
+    if (!signature) {
+      return reply.code(401).send({ error: "missing x-gex-signature header" });
+    }
 
     const sigValid = verifySignature(rawBody, signature);
 
