@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import crypto from "node:crypto";
 import { processWebhookPayload } from "../pipeline/processMatch";
 import { prisma } from "../db/client";
-import type { GexWebhookEvent } from "../types/webhook";
+import type { GexWebhookPayload } from "../types/webhook";
 
 const SIGNATURE_HEADER = "x-gex-signature";
 
@@ -52,12 +52,6 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
     ["application/json", "text/plain"],
     { parseAs: "string", bodyLimit: 10 * 1024 * 1024 }, // 10MB
     (request, body, done) => {
-      // Logging HERE, not in handleWebhook: schema validation (routeConfig.schema.body)
-      // runs in Fastify's preValidation hook, which fires BEFORE the route handler is
-      // ever called. If validation rejects the body, handleWebhook never executes —
-      // any logging placed there is unreachable. This parser callback is confirmed (via
-      // the stack trace) to run regardless of what validation later decides.
-      request.log.info({ rawBody: body }, "DEBUG raw webhook body, pre-validation");
       (request as unknown as { rawBody: string }).rawBody = body as string;
       try {
         done(null, JSON.parse(body as string));
@@ -71,11 +65,10 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
     schema: {
       body: {
         type: "object",
-        required: ["event", "timestamp", "payload"],
+        required: ["match", "output"],
         properties: {
-          event: { type: "string" },
-          timestamp: { type: "string", format: "date-time" },
-          payload: { type: "object" },
+          match: { type: "object" },
+          output: { type: "object" },
         },
       },
     },
@@ -95,15 +88,9 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
       return reply.code(401).send({ error: "invalid signature" });
     }
 
-    const event = request.body as GexWebhookEvent;
+    const { match, output } = request.body as GexWebhookPayload;
 
-    fastify.log.info({ event: event.event, matchId: event.payload.match.id }, "received gex webhook");
-
-    if (event.event !== "match.processed") {
-      return reply.code(200).send({ status: "ignored", reason: `event type ${event.event} not handled` });
-    }
-
-    const { match, output } = event.payload;
+    fastify.log.info({ matchId: match.id }, "received gex webhook");
 
     // The whole point of the webhook: this goes straight to the payload-only path, NOT
     // processMatch (the fetch-based one) — using processMatch here would silently

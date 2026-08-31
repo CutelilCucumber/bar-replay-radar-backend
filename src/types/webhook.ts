@@ -45,9 +45,3 @@ export interface GexWebhookPayload {
   match: GexWebhookMatch;
   output: GexWebhookOutput;
 }
-
-export interface GexWebhookEvent {
-  event: string;
-  timestamp: string;
-  payload: GexWebhookPayload;
-}
