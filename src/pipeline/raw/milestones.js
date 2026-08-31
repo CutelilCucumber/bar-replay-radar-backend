@@ -1,9 +1,9 @@
 // analyzeMatch.js's computeScore only ever reads `key` and `weight` off MILESTONES —
-// label/icon/color/description are UI-only, and the original awards.js imports icon
+// label/icon/color/description are UI-only, and the original milestones.js imports icon
 // components from lucide-react, a frontend package with no place in this backend.
-// Importing the real awards.js here as-is would fail to resolve that import.
+// Importing the real milestones.js here as-is would fail to resolve that import.
 //
-// IMPORTANT: this list must stay in sync with the frontend's awards.js MILESTONES by
+// IMPORTANT: this list must stay in sync with the frontend's milestones.js MILESTONES by
 // hand for now. Worth extracting a small shared file (JSON, or a .ts file with no
 // framework imports) that both frontend and backend import from, so key/weight can't
 // silently drift out of sync between the two — flagging this rather than solving it
@@ -33,4 +33,5 @@ export const MILESTONES = [
   { key: "ecoBoost", weight: 0 },
   { key: "extraUnits", weight: 0 },
   { key: "modded", weight: 0 },
+  { key: "pve", weight: 0 },
 ];

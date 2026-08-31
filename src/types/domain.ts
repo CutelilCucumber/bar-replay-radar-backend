@@ -2,6 +2,8 @@
 // types/gex.ts which describes what gex itself returns. See the folder-layout
 // discussion earlier: anything two or more files import belongs here.
 
+import type { Player } from "./gex";
+
 export interface SeriesPoint {
   t: number;
   armyA: number;
@@ -46,11 +48,55 @@ export interface TeamFacts {
   commanderUnitIDs: number[];
   commanderDeaths: CommanderDeath[];
   commanderClosestApproachToEnemyBase: { distance: number; frame: number } | null;
+  startPositions: StartPosition[];
 }
 
 export interface WindSummary {
   average: number;
   samples: { frame: number; value: number }[];
+}
+
+export interface StartPosition {
+  playerName: string;
+  teamID: number;
+  x: number;
+  z: number;
+}
+
+export interface MedalEntry {
+  unitID: number;
+  definitionName: string;
+  playerName: string;
+  teamID: number;
+  allyTeam: string;
+  buildFrame: number;
+  destroyedFrame: number | null;
+  kills: number;
+  experience: number;
+  rank: number;
+  highestValueKill: { definitionName: string; cost: number } | null;
+  totalDamageTaken?: number;
+}
+
+export interface PlayerAward {
+  teamID: number | null;
+  playerName: string | null;
+  value: number;
+  allyTeam: string | null;
+}
+
+export interface Medals {
+  veteranUnits: MedalEntry[];
+  killEfficiency: MedalEntry[];
+  damageTaken: MedalEntry[];
+  awards: {
+    resourceDestroyer: PlayerAward;
+    unitKiller: PlayerAward;
+    defenseDestroyer: PlayerAward;
+    damageEfficiency: PlayerAward;
+    traitor: PlayerAward;
+    goldenCow: { teamID: number; playerName: string; allyTeam: string } | null;
+  };
 }
 
 // buildSeries.js's raw return shape. unitDefsById genuinely is a Map here — the JS
@@ -82,6 +128,7 @@ export interface AnalyzableMatch {
   extraUnits: boolean;
   legionMatch: boolean;
   modded: boolean;
+  players: (Player & { startingPosition?: { x: number; z: number } })[];
 }
 
 // analyzeMatch.js's return shape. `flags`'s keys are exactly the 20 milestone keys —

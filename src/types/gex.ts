@@ -10,8 +10,15 @@ export interface AllyTeam {
 }
 
 export interface Player {
+  playerID?: number;
+  userID?: number;
+  name?: string;
+  username?: string;
+  teamID: number;
   allyTeamID: number;
   skill?: number;
+  skillUncertainty?: number;
+  countryCode?: string | null;
 }
 
 // gex's per-match game settings blob. Only the fields actually read anywhere

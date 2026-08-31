@@ -113,6 +113,7 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
       spectators: match.spectators,
       mapDraws: match.mapDraws,
       gameSettings: match.gameSettings,
+      teams: (match as unknown as Record<string, unknown>).teams as { teamID: number; startingPosition?: { x: number; z: number } }[] | undefined,
       ...output, // teamStats, unitsCreated, unitDefinitions, windUpdates, etc.
     });
 

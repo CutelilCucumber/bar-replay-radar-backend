@@ -3,3 +3,4 @@ PROJECT_SUMMARY.md
 /src/generated/prisma
 /dist
 .env
+matchExample.json

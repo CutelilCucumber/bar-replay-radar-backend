@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../db/client";
 import { processMatch } from "../pipeline/processMatch";
-import { MILESTONES } from "../pipeline/raw/awards";
+import { MILESTONES } from "../pipeline/raw/milestones";
 import type { Prisma } from "../generated/prisma/client";
 
 // Derived from the same MILESTONES list computeScore uses, rather than a fourth
@@ -39,6 +39,8 @@ const listQuerySchema = {
     startTimeBefore: { type: "string", format: "date-time" },
     // One boolean query param per milestone, e.g. ?stomp=true&comeback=false
     ...Object.fromEntries(MILESTONE_KEYS.map((key: string) => [key, { type: "boolean" }])),
+    // PvE filter
+    pve: { type: "boolean" },
   },
   additionalProperties: false,
 } as const;
@@ -60,6 +62,7 @@ interface ListQuery {
   durationMinutesMax?: number;
   startTimeAfter?: string;
   startTimeBefore?: string;
+  pve?: boolean;
   [milestoneKey: string]: unknown;
 }
 
@@ -116,6 +119,10 @@ function buildWhere(query: ListQuery): Prisma.MatchWhereInput {
     }
   }
 
+  if (typeof query.pve === "boolean") {
+    where.pve = query.pve;
+  }
+
   return where;
 }
 
@@ -125,21 +132,24 @@ function buildWhere(query: ListQuery): Prisma.MatchWhereInput {
  * own columns and everything else out of the JSON blobs already stored.
  */
 function toRecord(row: Prisma.MatchGetPayload<Record<string, never>>) {
+  const r = row as Record<string, unknown>;
   return {
     id: row.id,
-    map: (row as Record<string, unknown>).map ?? null, // add once your `map` migration lands
+    map: r.map ?? null,
     gamemode: String(row.gamemode),
     playerCount: row.playerCount,
     averageOS: row.averageOS,
     durationMin: row.durationMinutes,
     startTime: row.startTime.toISOString(),
-    teamA: { name: "Ally Team A", players: [] as unknown[], facts: row.teamAFacts },
-    teamB: { name: "Ally Team B", players: [] as unknown[], facts: row.teamBFacts },
-    winner: (row as Record<string, unknown>).winner ?? null, // add once your `winner` migration lands
-    series: row.series,
+    teamA: { name: "Ally Team A", players: [] as unknown[], facts: r.teamAFacts },
+    teamB: { name: "Ally Team B", players: [] as unknown[], facts: r.teamBFacts },
+    winner: r.winner ?? null,
+    series: r.series,
     score: row.score,
-    analysis: row.analysis,
-    ...Object.fromEntries(MILESTONE_KEYS.map((key: string) => [key, (row as Record<string, unknown>)[key]])),
+    analysis: r.analysis,
+    medals: r.medals ?? null,
+    pve: r.pve ?? false,
+    ...Object.fromEntries(MILESTONE_KEYS.map((key: string) => [key, r[key]])),
   };
 }
 

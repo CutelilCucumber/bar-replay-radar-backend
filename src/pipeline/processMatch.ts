@@ -2,9 +2,11 @@ import { Prisma } from "../generated/prisma/client";
 import { prisma } from "../db/client";
 import { buildMatchDataset } from "./buildSeries";
 import { analyzeMatch } from "./analyzeMatch";
+import { computeMedals } from "./raw/computeMedals";
+import { computeAwards } from "./raw/computeAwards";
 import { GexClient } from "../gex/client";
 import type { AllyTeam, GameOutput, GameSettings, MatchSummary, Player } from "../types/gex";
-import type { AnalyzableMatch } from "../types/domain";
+import type { AnalyzableMatch, Medals } from "../types/domain";
 
 export type ProcessResult =
   | "inserted"
@@ -28,6 +30,18 @@ function averageSkill(players: Player[], allyId: number): number {
   if (teamPlayers.length === 0) return 20; // neutral default, matches matchData.js
   const total = teamPlayers.reduce((sum, p) => sum + Number(p.skill ?? 20), 0);
   return total / teamPlayers.length;
+}
+
+function buildTeamToAllyMap(players: Player[]): Record<number, number> {
+  const map: Record<number, number> = {};
+  for (const p of players) map[p.teamID] = p.allyTeamID;
+  return map;
+}
+
+function isPvE(players: Player[]): boolean {
+  if (players.length === 0) return false;
+  const firstAlly = players[0]?.allyTeamID;
+  return players.every((p) => p.allyTeamID === firstAlly);
 }
 
 /**
@@ -82,14 +96,26 @@ interface AssembleAndInsertInput {
   spectatorCount: number;
   mapDraws: unknown[];
   gameSettings?: GameSettings | undefined;
+  teams?: { teamID: number; startingPosition?: { x: number; z: number } }[] | undefined;
 }
 
 async function assembleAndInsert(input: AssembleAndInsertInput): Promise<ProcessResult> {
   const teamStats = input.eventJson.teamStats ?? [];
   if (teamStats.length === 0 || input.allyTeams.length < 2) return "insufficientData";
 
+  // Merge starting positions from teams array into players array.
+  // The gex API puts startingPosition on the teams[] objects, not players[].
+  // This merge enables per-player start position tracking for map visualization.
+  const teamsByTeamID = new Map((input.teams ?? []).map((t) => [t.teamID, t]));
+  const playersWithPositions = input.players.map((p) => {
+    const team = teamsByTeamID.get(p.teamID);
+    return team?.startingPosition
+      ? { ...p, startingPosition: team.startingPosition }
+      : p;
+  }) as (Player & { startingPosition?: { x: number; z: number } })[];
+
   const durationMin = Math.round(input.durationMs / 60000);
-  const dataset = buildMatchDataset(input.eventJson, input.players, input.allyTeams, durationMin);
+  const dataset = buildMatchDataset(input.eventJson, playersWithPositions, input.allyTeams, durationMin);
   if (dataset.series.length < 3) return "insufficientData";
 
   const allyIds = getSortedAllyIds(input.allyTeams);
@@ -97,25 +123,46 @@ async function assembleAndInsert(input: AssembleAndInsertInput): Promise<Process
   const [allyA, allyB] = allyIds as [number, number];
   const winnerSide = getWinnerSide(input.allyTeams, allyIds);
   const { ecoBoost, extraUnits, modded } = deriveModFlags(input.gameSettings);
+  const teamToAlly = buildTeamToAllyMap(playersWithPositions);
+  const pveFlag = isPvE(playersWithPositions);
+
+  const medals: Medals = {
+    ...computeMedals({
+      unitsCreated: (input.eventJson.unitsCreated as unknown[]) ?? [],
+      unitsKilled: (input.eventJson.unitsKilled as unknown[]) ?? [],
+      unitDamage: (input.eventJson.unitDamage as unknown[]) ?? [],
+      unitDefinitions: (input.eventJson.unitDefinitions as unknown[]) ?? [],
+      players: playersWithPositions,
+      teamToAlly,
+    }),
+    awards: computeAwards({
+      unitsCreated: (input.eventJson.unitsCreated as unknown[]) ?? [],
+      unitsKilled: (input.eventJson.unitsKilled as unknown[]) ?? [],
+      teamStats: (input.eventJson.teamStats as unknown[]) ?? [],
+      unitDefinitions: (input.eventJson.unitDefinitions as unknown[]) ?? [],
+      players: playersWithPositions,
+      teamToAlly,
+    }) as Medals["awards"],
+  };
 
   const analyzable: AnalyzableMatch = {
     series: dataset.series,
     winner: winnerSide,
     teamA: {
       name: "Ally Team A",
-      skill: averageSkill(input.players, allyA),
+      skill: averageSkill(playersWithPositions, allyA),
       players: [],
       facts: dataset.teamFacts.A,
     },
     teamB: {
       name: "Ally Team B",
-      skill: averageSkill(input.players, allyB),
+      skill: averageSkill(playersWithPositions, allyB),
       players: [],
       facts: dataset.teamFacts.B,
     },
     durationMin,
     wind: dataset.wind,
-    playerCount: input.playerCount ?? input.players.length,
+    playerCount: input.playerCount ?? playersWithPositions.length,
     gamemode: String(input.gamemode ?? ""),
     teamDeaths: input.teamDeaths,
     spectatorCount: input.spectatorCount,
@@ -124,6 +171,7 @@ async function assembleAndInsert(input: AssembleAndInsertInput): Promise<Process
     extraUnits,
     modded,
     legionMatch: dataset.legionMatch,
+    players: playersWithPositions,
   };
 
   const analysis = analyzeMatch(analyzable);
@@ -147,6 +195,8 @@ async function assembleAndInsert(input: AssembleAndInsertInput): Promise<Process
         // `analysis.flags` keys are exactly the 20 milestone keys, matching
         // schema.prisma's boolean columns 1:1.
         ...analysis.flags,
+        pve: pveFlag,
+        medals: medals as unknown as Prisma.InputJsonValue,
         series: dataset.series as unknown as Prisma.InputJsonValue,
         teamAFacts: dataset.teamFacts.A as unknown as Prisma.InputJsonValue,
         teamBFacts: dataset.teamFacts.B as unknown as Prisma.InputJsonValue,
@@ -202,6 +252,7 @@ export async function processMatch(gex: GexClient, summary: MatchSummary): Promi
     spectatorCount: matchJson.spectators?.length ?? 0,
     mapDraws: matchJson.mapDraws ?? [],
     gameSettings: matchJson.gameSettings,
+    teams: (matchJson as unknown as Record<string, unknown>).teams as { teamID: number; startingPosition?: { x: number; z: number } }[] | undefined,
   });
 }
 
@@ -226,6 +277,7 @@ export async function processWebhookPayload(payload: {
   spectators?: unknown[] | undefined;
   mapDraws?: unknown[] | undefined;
   gameSettings?: GameSettings | undefined;
+  teams?: { teamID: number; startingPosition?: { x: number; z: number } }[] | undefined;
   [key: string]: unknown;
 }): Promise<ProcessResult> {
   const existing = await prisma.match.findUnique({ where: { id: payload.id }, select: { id: true } });
@@ -249,5 +301,6 @@ export async function processWebhookPayload(payload: {
     spectatorCount: payload.spectators?.length ?? 0,
     mapDraws: payload.mapDraws ?? [],
     gameSettings: payload.gameSettings,
+    teams: payload.teams,
   });
 }

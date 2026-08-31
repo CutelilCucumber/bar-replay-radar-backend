@@ -1,4 +1,4 @@
-import { MILESTONES } from "./awards.js";
+import { MILESTONES } from "./milestones.js";
 
 // ---------------------------------------------------------------------------
 // TODO: rework base race to account for buildings killed
@@ -108,7 +108,8 @@ export function analyzeMatch(match) {
     peanutGallery: peanutGallery(spectatorCount),
     ecoBoost: ecoBoost(match),
     extraUnits: extraUnits(match),
-    modded: modded(match)
+    modded: modded(match),
+    pve: pve(match)
   };
 
   const flags = {};
@@ -391,6 +392,13 @@ function extraUnits(match) {
 /** modded game. Weight 0 — informational only. */
 function modded(match) {
   const flag = Boolean(match.modded);
+  return { flag, magnitude: flag ? 1 : 0 };
+}
+
+/** All players on the same team (PvE / co-op vs AI). Weight 0 — informational only. */
+function pve(match) {
+  const players = match.players ?? [];
+  const flag = players.length > 0 && players.every((p) => p.allyTeamID === players[0].allyTeamID);
   return { flag, magnitude: flag ? 1 : 0 };
 }
 

@@ -28,7 +28,7 @@ model Match {
   startTime       DateTime
   durationMinutes Int
 
-  // --- milestone flags (one indexed boolean per key from awards.js MILESTONES) ---
+  // --- milestone flags (one indexed boolean per key from milestones.js MILESTONES) ---
   // Excludes baseRace — disabled per PROJECT_SUMMARY TODOs.
   bigBattle         Boolean @default(false)
   comeback          Boolean @default(false)
@@ -54,6 +54,12 @@ model Match {
   ecoBoost          Boolean @default(false)
   extraUnits        Boolean @default(false)
   modded            Boolean @default(false)
+
+  // --- medals (unit-level highlights + per-player awards) ---
+  medals      Json?  // { veteranUnits, killEfficiency, damageTaken, awards }
+
+  // --- PvE flag ---
+  pve         Boolean @default(false)
 
   // --- opaque JSON blobs, matching your existing pure-function outputs 1:1 ---
   series      Json // per-minute array from buildSeries.js
@@ -90,4 +96,5 @@ model Match {
   @@index([legionMatch])
   @@index([upset])
   @@index([peanutGallery])
+  @@index([pve])
 }

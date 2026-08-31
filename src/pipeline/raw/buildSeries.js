@@ -334,6 +334,7 @@ function buildTeamFacts({
     commanderUnitIDs: [...commanderUnitIDs],
     commanderDeaths,
     commanderClosestApproachToEnemyBase: closestApproach,
+    startPositions: buildStartPositions(players, ally),
   };
 }
 
@@ -354,6 +355,21 @@ function averageStartPosition(players, allyTeamID) {
 
 function distance2D(x1, z1, x2, z2) {
   return Math.hypot(x1 - x2, z1 - z2);
+}
+
+/**
+ * Extracts starting positions for all players on a given ally side.
+ * Returns an array of { playerName, teamID, x, z } for frontend map visualization.
+ */
+function buildStartPositions(players, allyTeamID) {
+  return players
+    .filter((p) => p.allyTeamID === allyTeamID && p.startingPosition)
+    .map((p) => ({
+      playerName: p.name ?? p.username ?? `Team ${p.teamID}`,
+      teamID: p.teamID,
+      x: p.startingPosition.x,
+      z: p.startingPosition.z,
+    }));
 }
 
 /**

@@ -48,7 +48,7 @@ src/
   gex/          rate-limited gex API client (client.ts, rateLimiter.ts)
   pipeline/      buildSeries.ts / analyzeMatch.ts — typed wrappers around raw/*.js
     raw/          unmodified pipeline logic ported from the frontend (buildSeries.js,
-                   analyzeMatch.js, awards.js, globalVars.js)
+                   analyzeMatch.js, milestones.js, globalVars.js)
     processMatch.ts   fetch → analyze → insert, the core unit of work
   scanner/      backfillSweeper.ts (walks history backward) · recentSweeper.ts (catches
                 gaps/retries near "now")
@@ -105,7 +105,7 @@ Paginated, filtered match list. Query params:
   `durationMinutesMin`/`Max`
 - `startTimeAfter`/`Before` (ISO date-time)
 - One boolean param per milestone (e.g. `?stomp=true&comeback=false`) — the full list is
-  derived from `pipeline/raw/awards.js`, not hardcoded in the route
+  derived from `pipeline/raw/milestones.js`, not hardcoded in the route
 
 Response: `{ matches: [...], total, limit, offset }`
 
@@ -133,9 +133,9 @@ proactively rather than reactively.
 
 ## TODOs
 
-- `raw/awards.js` is a hand-maintained, lucide-react-stripped copy of the frontend's
+- `raw/milestones.js` is a hand-maintained, lucide-react-stripped copy of the frontend's
   milestone config — must be kept in sync by hand (key + weight only) whenever the
   frontend's list changes. A stale copy here causes a `NaN` score, not an error — worth
   remembering if scores ever look wrong after a milestone edit.
-- `baseRace`, `nonstandard game`, `artistic players`, are possible awards to build for sorting.
+- `baseRace`, `nonstandard game`, `artistic players`, are possible milestones to build for sorting.
 - No automated pruning/retention job yet — see "Disk space" above.
