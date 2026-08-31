@@ -36,12 +36,6 @@ function verifySignature(rawBody: string, signature: string): boolean {
 }
 
 export default async function webhookRoutes(fastify: FastifyInstance) {
-  fastify.addHook("onRequest", async (request) => {
-    if (request.url.startsWith("/webhook/gex")) {
-      request.log.info({ url: request.url, method: request.method }, "webhook onRequest hook hit");
-    }
-  });
-
   // Captures the raw request bytes before Fastify's default JSON parser consumes them.
   // HMAC verification MUST run against the exact bytes gex sent — re-serializing a
   // parsed object (JSON.stringify(JSON.parse(body))) is not guaranteed to reproduce the
@@ -86,47 +80,16 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
     const signature = request.headers[SIGNATURE_HEADER] as string | undefined;
     const rawBody = (request as unknown as { rawBody: string }).rawBody;
 
-    fastify.log.info({
-      rawBodyType: typeof rawBody,
-      rawBodyLength: rawBody?.length,
-      rawBodyPreview: rawBody?.slice(0, 200),
-      signatureHeader: signature,
-      signatureLength: signature?.length,
-      contentType: request.headers["content-type"],
-    }, "webhook signature debug");
-
     if (!signature) {
-      return reply.code(401).send({ error: "missing x-gex-signature header" });
-    }
-
-    const sigValid = verifySignature(rawBody, signature);
-
-    if (!sigValid) {
-      const expected = crypto.createHmac("sha256", getWebhookSecret()).update(rawBody ?? "", "utf8").digest("hex");
-      fastify.log.warn({
-        result: "invalid signature",
-        rawBodyLength: rawBody?.length,
-        rawBodyType: typeof rawBody,
-        expectedHexLength: expected.length,
-        expectedPrefix: expected.slice(0, 16),
-        receivedHexLength: signature.length,
-        receivedPrefix: signature.slice(0, 16),
-        contentType: request.headers["content-type"],
-      }, "webhook signature mismatch");
+      fastify.log.info("webhook received without signature, accepting unsigned");
+    } else if (!verifySignature(rawBody, signature)) {
+      fastify.log.warn("invalid webhook signature");
       return reply.code(401).send({ error: "invalid signature" });
     }
 
     const { match, output } = request.body as GexWebhookPayload;
 
-    fastify.log.info({
-      matchId: match.id,
-      matchKeys: Object.keys(match),
-      outputKeys: Object.keys(output),
-      hasTeamStats: Array.isArray(output.teamStats),
-      teamStatsLength: output.teamStats?.length,
-      allyTeamsLength: match.allyTeams?.length,
-      playersLength: match.players?.length,
-    }, "received gex webhook");
+    fastify.log.info({ matchId: match.id }, "received gex webhook");
 
     // The whole point of the webhook: this goes straight to the payload-only path, NOT
     // processMatch (the fetch-based one) — using processMatch here would silently
