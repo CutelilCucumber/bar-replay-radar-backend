@@ -1,10 +1,11 @@
 /**
  * Computes unit-level medals from raw event data.
  *
- * Tracks the top 3 units in three categories:
- * - Veteran Units: highest experience/rank
- * - Kill Efficiency: most kills
+ * Tracks the top 3 units in four categories:
+ * - Damage Efficiency: most damage dealt per metal cost
+ * - Damage Dealt: most cumulative damage dealt
  * - Damage Taken: most damage absorbed
+ * - Veteran Units: highest experience/rank
  *
  * Each medal entry includes the unit's definition name, the player who built it
  * (resolved via teamID -> players array), build/destroy frames, kill count,
@@ -32,7 +33,8 @@ const TOP_N = 3;
  * @param {Array} params.unitDefinitions
  * @param {Array} params.players
  * @param {Record<number, number>} params.teamToAlly
- * @returns {{ veteranUnits: Array, killEfficiency: Array, damageTaken: Array }}
+ * @param {Record<number, string|null>} params.playerColors - teamID -> css color
+ * @returns {{ damageEfficiency: Array, damageDealt: Array, damageTaken: Array, veteranUnits: Array }}
  */
 export function computeMedals({
   unitsCreated = [],
@@ -41,6 +43,7 @@ export function computeMedals({
   unitDefinitions = [],
   players = [],
   teamToAlly = {},
+  playerColors = {},
 }) {
   const defsById = new Map();
   for (const def of unitDefinitions) defsById.set(def.definitionID, def);
@@ -109,6 +112,7 @@ export function computeMedals({
       playerName: player?.name ?? player?.username ?? `Team ${created.teamID}`,
       teamID: created.teamID,
       allyTeam: ally === 0 ? "A" : "B",
+      color: created.teamID != null ? (playerColors[created.teamID] ?? null) : null,
       buildFrame: created.frame,
       destroyedFrame: destroyedFrame.get(unitID) ?? null,
       kills: killStats?.count ?? 0,
@@ -122,17 +126,25 @@ export function computeMedals({
   }
 
   // Sort and take top N for each category
-  const veteranUnits = [...entries]
-    .sort((a, b) => b.experience - a.experience || b.rank - a.rank)
+  const damageEfficiency = [...entries]
+    .sort((a, b) => {
+      const efficiencyOf = (e) =>
+        e.metalCost > 0 ? e.damageDealt / e.metalCost : e.damageDealt;
+      return efficiencyOf(b) - efficiencyOf(a);
+    })
     .slice(0, TOP_N);
 
-  const killEfficiency = [...entries]
-    .sort((a, b) => b.kills - a.kills || b.experience - a.experience)
+  const damageDealt = [...entries]
+    .sort((a, b) => b.damageDealt - a.damageDealt)
     .slice(0, TOP_N);
 
   const damageTaken = [...entries]
     .sort((a, b) => b.totalDamageTaken - a.totalDamageTaken)
     .slice(0, TOP_N);
 
-  return { veteranUnits, killEfficiency, damageTaken };
+  const veteranUnits = [...entries]
+    .sort((a, b) => b.experience - a.experience || b.rank - a.rank)
+    .slice(0, TOP_N);
+
+  return { damageEfficiency, damageDealt, damageTaken, veteranUnits };
 }

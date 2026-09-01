@@ -57,7 +57,7 @@ model Match {
   modded            Boolean @default(false)
 
   // --- medals (unit-level highlights + per-player awards) ---
-  medals      Json?  // { veteranUnits, killEfficiency, damageTaken, awards }
+  medals      Json?  // { damageEfficiency, damageDealt, damageTaken, veteranUnits, awards }
 
   // --- PvE flag ---
   pve         Boolean @default(false)

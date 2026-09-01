@@ -94,9 +94,10 @@ export interface RankedAward {
 }
 
 export interface Medals {
-  veteranUnits: MedalEntry[];
-  killEfficiency: MedalEntry[];
+  damageEfficiency: MedalEntry[];
+  damageDealt: MedalEntry[];
   damageTaken: MedalEntry[];
+  veteranUnits: MedalEntry[];
   awards: {
     resourceDestroyer: RankedAward;
     combatMaster: RankedAward;
