@@ -87,9 +87,33 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
       return reply.code(401).send({ error: "invalid signature" });
     }
 
+    // The raw body string (up to 50MB) is only needed for the HMAC check above.
+    // Release it before processing so it isn't retained for the whole pipeline run.
+    delete (request as unknown as { rawBody?: string }).rawBody;
+
     const { match, output } = request.body as GexWebhookPayload;
 
     fastify.log.info({ matchId: match.id }, "received gex webhook");
+
+    // The payload is the full GameOutput; the pipeline only consumes a subset of it.
+    // Free the large arrays it never reads (unitResources, factoryUnitCreate,
+    // unitPosition, transfer events, lookup maps) so GC can reclaim them during
+    // processing rather than holding them alongside the parsed body.
+    for (const key of [
+      "unitResources",
+      "factoryUnitCreate",
+      "factoryUnitCreated",
+      "unitPosition",
+      "unitsTaken",
+      "unitsGiven",
+      "hasUnitCompleted",
+      "defNameToDef",
+      "unitIdToDefinition",
+      "transportLoaded",
+      "transportUnloaded",
+    ]) {
+      delete (output as unknown as Record<string, unknown>)[key];
+    }
 
     // The whole point of the webhook: this goes straight to the payload-only path, NOT
     // processMatch (the fetch-based one) — using processMatch here would silently

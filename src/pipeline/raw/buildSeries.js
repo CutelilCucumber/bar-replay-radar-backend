@@ -216,16 +216,15 @@ function buildSeries({ teamStats, extraStats, teamToAlly, allyA, allyB }) {
 }
 
 /**
- * Average wind speed and raw samples for this match, for the "windy day"
- * milestone and for normalizing rush timings against wind-dependent AFUs.
+ * Average wind speed for this match, for the "windy day" milestone and for
+ * normalizing rush timings against wind-dependent AFUs. Only the average is
+ * consumed downstream (analyzeMatch reads wind.average); the per-sample array
+ * used to be retained here but nothing reads it, so it's not built at all.
  */
 function buildWindSummary(windUpdates) {
-  if (windUpdates.length === 0) return { average: 0, samples: [] };
+  if (windUpdates.length === 0) return { average: 0 };
   const total = windUpdates.reduce((sum, w) => sum + Number(w.value ?? 0), 0);
-  return {
-    average: total / windUpdates.length,
-    samples: windUpdates.map((w) => ({ frame: w.frame, value: w.value })),
-  };
+  return { average: total / windUpdates.length };
 }
 
 /**

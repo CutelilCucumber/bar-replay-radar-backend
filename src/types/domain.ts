@@ -53,7 +53,6 @@ export interface TeamFacts {
 
 export interface WindSummary {
   average: number;
-  samples: { frame: number; value: number }[];
 }
 
 export interface StartPosition {

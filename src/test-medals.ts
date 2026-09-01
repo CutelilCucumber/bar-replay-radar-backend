@@ -18,11 +18,11 @@ const FRAMES_PER_SECOND = 30;
 // --- Load and flatten matchExample.json ---
 
 const raw = readFileSync(resolve(import.meta.dirname, "../matchExample.json"), "utf-8");
-const example = JSON.parse(raw);
+const example: any = JSON.parse(raw);
 
-const match = example.match;
-const events = example.events;
-const unitDefs = Array.isArray(example.unitDefinitions) ? example.unitDefinitions : [];
+const match: any = example.match;
+const events: any = example.events;
+const unitDefs: any[] = Array.isArray(example.unitDefinitions) ? example.unitDefinitions : [];
 
 // Inject unitDefinitions into events so buildMatchDataset can find them
 events.unitDefinitions = unitDefs;
@@ -32,7 +32,7 @@ const teamToAlly: Record<number, number> = {};
 for (const p of match.players) teamToAlly[p.teamID] = p.allyTeamID;
 
 // Merge starting positions from teams into players
-const teamsByTeamID = new Map((match.teams ?? []).map((t: any) => [t.teamID, t]));
+const teamsByTeamID = new Map<number, any>((match.teams ?? []).map((t: any) => [t.teamID, t]));
 const playersWithPositions = match.players.map((p: any) => {
   const team = teamsByTeamID.get(p.teamID);
   return team?.startingPosition
@@ -59,7 +59,8 @@ const dataset = buildMatchDataset(events, playersWithPositions, match.allyTeams,
 console.log("=== Series ===");
 console.log(`Buckets: ${dataset.series.length} minutes`);
 console.log(`First: t=${dataset.series[0]?.t}, armyA=${dataset.series[0]?.armyA}, armyB=${dataset.series[0]?.armyB}`);
-console.log(`Last:  t=${dataset.series.at(-1)?.t}, armyA=${dataset.series.at(-1)?.armyA}, armyB=${dataset.series.at(-1)?.armyB}`);
+const lastPoint = dataset.series[dataset.series.length - 1];
+console.log(`Last:  t=${lastPoint?.t}, armyA=${lastPoint?.armyA}, armyB=${lastPoint?.armyB}`);
 console.log();
 
 console.log("=== Start Positions ===");
@@ -111,7 +112,8 @@ for (const m of medals.damageTaken) {
 console.log();
 
 // Awards
-const allyIds = [...new Set(match.allyTeams.map((a: any) => a.allyTeamID))].sort((a: number, b: number) => a - b);
+const allyIds = [...new Set((match.allyTeams ?? []).map((a: any) => a.allyTeamID))] as number[];
+allyIds.sort((a, b) => a - b);
 const playerColors = assignPlayerColors(playersWithPositions, allyIds[0], allyIds[1]);
 const awards = computeAwards({
   unitsCreated: events.unitsCreated ?? [],
@@ -121,7 +123,7 @@ const awards = computeAwards({
   players: playersWithPositions,
   teamToAlly,
   playerColors,
-});
+}) as any;
 
 const fmtAward = (a: any) => a.winner ? `${a.winner.playerName} (${a.winner.value}) [runners: ${a.runnersUp.map((r: any) => `${r.playerName}(${r.value})`).join(", ") || "—"}]` : "—";
 console.log("=== Awards ===");

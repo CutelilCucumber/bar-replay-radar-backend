@@ -51,29 +51,40 @@ export function computeMedals({
   const playerByTeam = new Map();
   for (const p of players) playerByTeam.set(p.teamID, p);
 
-  // Latest unitDamage entry per unitID (highest frame = final state)
+  // Latest unitDamage entry per unitID (highest frame = final state) and total
+  // damageTaken per unitID — merged into a single pass over unitDamage (the array
+  // can be large for long matches, so one traversal instead of two).
   const latestDamage = new Map();
+  const totalDamageTaken = new Map();
   for (const d of unitDamage) {
     const existing = latestDamage.get(d.unitID);
     if (!existing || d.frame > existing.frame) latestDamage.set(d.unitID, d);
-  }
-
-  // Total damageTaken per unitID (sum across all entries)
-  const totalDamageTaken = new Map();
-  for (const d of unitDamage) {
     totalDamageTaken.set(
       d.unitID,
       (totalDamageTaken.get(d.unitID) ?? 0) + Number(d.damageTaken ?? 0),
     );
   }
 
-  // Kills grouped by attackerID
-  const killsByAttacker = new Map();
+  // Kills grouped by attackerID, aggregated inline: count + the highest-value kill.
+  // Storing the full kill objects in per-attacker arrays (the old approach) held a
+  // reference to every kill event; counting here needs only two scalars per attacker.
+  const killStatsByAttacker = new Map();
   for (const k of unitsKilled) {
     if (k.attackerID == null) continue;
-    const arr = killsByAttacker.get(k.attackerID) ?? [];
-    arr.push(k);
-    killsByAttacker.set(k.attackerID, arr);
+    const killDef = defsById.get(k.definitionID);
+    const cost = killDef?.cost ?? 0;
+    const entry =
+      killStatsByAttacker.get(k.attackerID) ??
+      { count: 0, bestCost: 0, highestValueKill: null };
+    entry.count += 1;
+    if (cost > entry.bestCost) {
+      entry.bestCost = cost;
+      entry.highestValueKill = {
+        definitionName: killDef?.definitionName ?? "unknown",
+        cost,
+      };
+    }
+    killStatsByAttacker.set(k.attackerID, entry);
   }
 
   // Destroyed frame per unitID
@@ -90,22 +101,7 @@ export function computeMedals({
     const name = def?.definitionName ?? created.definitionName ?? "unknown";
     const player = playerByTeam.get(created.teamID);
     const ally = teamToAlly[created.teamID];
-    const kills = killsByAttacker.get(unitID) ?? [];
-
-    // Find highest value kill
-    let highestValueKill = null;
-    let bestCost = 0;
-    for (const k of kills) {
-      const killDef = defsById.get(k.definitionID);
-      const cost = killDef?.cost ?? 0;
-      if (cost > bestCost) {
-        bestCost = cost;
-        highestValueKill = {
-          definitionName: killDef?.definitionName ?? "unknown",
-          cost,
-        };
-      }
-    }
+    const killStats = killStatsByAttacker.get(unitID);
 
     entries.push({
       unitID,
@@ -115,10 +111,10 @@ export function computeMedals({
       allyTeam: ally === 0 ? "A" : "B",
       buildFrame: created.frame,
       destroyedFrame: destroyedFrame.get(unitID) ?? null,
-      kills: kills.length,
+      kills: killStats?.count ?? 0,
       experience: Number(dmg.experience ?? 0),
       rank: Number(dmg.rank ?? 0),
-      highestValueKill,
+      highestValueKill: killStats?.highestValueKill ?? null,
       totalDamageTaken: totalDamageTaken.get(unitID) ?? 0,
     });
   }

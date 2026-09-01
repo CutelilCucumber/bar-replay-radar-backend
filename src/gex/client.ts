@@ -77,7 +77,6 @@ export class GexClient {
       includeAllyTeams: "true",
       includeSpectators: "true",
       includeTeamDeaths: "true",
-      includeChat: "true",
       includeMapDraws: "true"
     });
 
@@ -86,6 +85,9 @@ export class GexClient {
 
   /** GET /api/game-event/{id} — returns the discriminated 204-vs-ready result explicitly. */
   async getGameEvent(matchId: string): Promise<GameEventResult> {
+    // NOTE: unitResources and factoryUnitCreate are deliberately NOT requested —
+    // the pipeline never reads them (buildSeries explicitly voids unitResources),
+    // and they're among the largest arrays gex returns for long matches.
     const params = new URLSearchParams({
       includeTeamStats: "true",
       includeExtraStats: "true",
@@ -94,8 +96,6 @@ export class GexClient {
       includeUnitsKilled: "true",
       includeUnitDamage: "true",
       includeUnitDefs: "true",
-      includeUnitResources: "true",
-      includeFactoryUnitCreate: "true",
       includeTeamDiedEvents: "true",
       includeCommanderPositionUpdates: "true",
     });

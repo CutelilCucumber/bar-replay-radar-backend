@@ -149,6 +149,13 @@ async function assembleAndInsert(input: AssembleAndInsertInput): Promise<Process
     }) as Medals["awards"],
   };
 
+  // The raw event arrays are the largest allocations in this function (for long
+  // matches they dwarf everything else). buildMatchDataset, computeMedals, and
+  // computeAwards above are the only consumers — analyzeMatch and the DB write
+  // below don't touch them. Null them out now so GC can reclaim them during the
+  // await of prisma.match.create instead of holding them for the whole function.
+  input.eventJson = {} as GameOutput;
+
   const analyzable: AnalyzableMatch = {
     series: dataset.series,
     winner: winnerSide,
