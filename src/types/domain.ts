@@ -61,6 +61,7 @@ export interface StartPosition {
   teamID: number;
   x: number;
   z: number;
+  color: string | null;
 }
 
 export interface MedalEntry {
@@ -78,11 +79,17 @@ export interface MedalEntry {
   totalDamageTaken?: number;
 }
 
-export interface PlayerAward {
-  teamID: number | null;
+export interface AwardEntry {
+  teamID: number;
   playerName: string | null;
   value: number;
   allyTeam: string | null;
+  color: string | null;
+}
+
+export interface RankedAward {
+  winner: AwardEntry | null;
+  runnersUp: AwardEntry[];
 }
 
 export interface Medals {
@@ -90,11 +97,15 @@ export interface Medals {
   killEfficiency: MedalEntry[];
   damageTaken: MedalEntry[];
   awards: {
-    resourceDestroyer: PlayerAward;
-    combatMaster: PlayerAward;
-    damageEfficiency: PlayerAward;
-    traitor: PlayerAward;
-    goldenCow: { teamID: number; playerName: string; allyTeam: string } | null;
+    resourceDestroyer: RankedAward;
+    combatMaster: RankedAward;
+    damageEfficiency: RankedAward;
+    traitor: RankedAward;
+    goldenCow: Omit<AwardEntry, "value"> | null;
+    subAwards: {
+      mostResources: AwardEntry | null;
+      mostDamageTaken: AwardEntry | null;
+    };
   };
 }
 

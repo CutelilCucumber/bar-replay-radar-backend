@@ -1,15 +1,22 @@
 /**
- * Computes per-player awards from raw event data.
+ * Computes per-player awards from raw event data, in BAR's end-game shape.
  *
- * Awards tracked:
+ * Awards tracked (each returns the winner plus up to two runners-up):
  * - Resource Destroyer: player who destroyed the most resource production structures
  * - Combat Master: player who destroyed the most units AND defense structures combined
  * - Damage Efficiency: player with the best damageDealt/metalUsed ratio
  * - Traitor: player who destroyed the most allied units (friendly fire)
- * - Golden Cow: player who sweeps all awards (traitor optional)
+ * - Golden Cow: player who sweeps resourceDestroyer + combatMaster + damageEfficiency
+ *   (traitor is optional)
+ *
+ * Sub-awards (single winner each, derived from final cumulative team stats):
+ * - Most resources produced (metalProduced + energyProduced)
+ * - Most damage taken (damageReceived)
  *
  * Per-player attribution works because BAR assigns each player a unique teamID.
  * Event data uses teamID, which maps to a specific player in the players array.
+ * Player colors are resolved upstream (pipeline/playerColors.js) and passed in
+ * as playerColors so they get baked into the stored record alongside names.
  */
 
 // Unit classification for award categorization.
@@ -66,6 +73,7 @@ const DEFENSE_STRUCTURE_DEFS = new Set([
  * @param {Array} params.unitDefinitions - unit definition objects
  * @param {Array} params.players - player objects with teamID, name, etc.
  * @param {Record<number, number>} params.teamToAlly - teamID -> allyTeamID map
+ * @param {Record<number, string|null>} params.playerColors - teamID -> css color
  * @returns {object} awards object
  */
 export function computeAwards({
@@ -75,6 +83,7 @@ export function computeAwards({
   unitDefinitions = [],
   players = [],
   teamToAlly = {},
+  playerColors = {},
 }) {
   const defsById = new Map();
   for (const def of unitDefinitions) defsById.set(def.definitionID, def);
@@ -89,6 +98,7 @@ export function computeAwards({
       teamID,
       playerName: p?.name ?? p?.username ?? (teamID != null ? `Team ${teamID}` : null),
       allyTeam: teamID != null ? (teamToAlly[teamID] === 0 ? "A" : "B") : null,
+      color: teamID != null ? (playerColors[teamID] ?? null) : null,
     };
   };
 
@@ -128,12 +138,8 @@ export function computeAwards({
   }
 
   // --- Damage Efficiency ---
-  // damageDealt / metalUsed from teamStats (final cumulative values per team)
-  const finalStats = new Map();
-  for (const s of teamStats) {
-    const existing = finalStats.get(s.teamID);
-    if (!existing || s.frame > existing.frame) finalStats.set(s.teamID, s);
-  }
+  // damageDealt / metalUsed from final cumulative team stats
+  const finalStats = finalStatsByTeam(teamStats);
   const efficiencyByTeam = new Map();
   for (const [teamID, stats] of finalStats) {
     const dealt = Number(stats.damageDealt ?? 0);
@@ -156,52 +162,57 @@ export function computeAwards({
     }
   }
 
-  // --- Pick winners ---
-  const pickWinner = (countsByTeam) => {
-    let best = null;
-    let bestVal = 0;
-    for (const [teamID, count] of countsByTeam) {
-      if (count > bestVal) {
-        bestVal = count;
-        best = teamID;
-      }
-    }
-    if (best == null) return { teamID: null, playerName: null, value: 0, allyTeam: null };
-    const p = resolvePlayer(best);
-    return { ...p, value: bestVal };
+  /**
+   * Ranks a team's entries, descending by value, ignoring zero/negative values.
+   * Returns { winner, runnersUp } where each entry carries player info + value.
+   */
+  const rankEntries = (valuesByTeam, roundValue = (v) => v) => {
+    const sorted = [...valuesByTeam.entries()]
+      .filter(([, v]) => v > 0)
+      .sort((a, b) => b[1] - a[1]);
+    if (sorted.length === 0) return { winner: null, runnersUp: [] };
+    const entries = sorted.map(([teamID, v]) => ({
+      ...resolvePlayer(teamID),
+      value: roundValue(v),
+    }));
+    return { winner: entries[0], runnersUp: entries.slice(1, 3) };
   };
 
-  const pickEfficiencyWinner = () => {
-    let best = null;
-    let bestVal = 0;
-    for (const [teamID, ratio] of efficiencyByTeam) {
-      if (ratio > bestVal) {
-        bestVal = ratio;
-        best = teamID;
-      }
-    }
-    if (best == null) return { teamID: null, playerName: null, value: 0, allyTeam: null };
-    const p = resolvePlayer(best);
-    return { ...p, value: Math.round(bestVal * 100) / 100 };
-  };
-
-  const resourceDestroyer = pickWinner(resourceKillsByTeam);
-  const combatMaster = pickWinner(combatKillsByTeam);
-  const damageEfficiency = pickEfficiencyWinner();
-  const traitor = pickWinner(traitorKillsByTeam);
+  const resourceDestroyer = rankEntries(resourceKillsByTeam);
+  const combatMaster = rankEntries(combatKillsByTeam);
+  const damageEfficiency = rankEntries(
+    efficiencyByTeam,
+    (v) => Math.round(v * 100) / 100,
+  );
+  const traitor = rankEntries(traitorKillsByTeam);
 
   // --- Golden Cow ---
   // Player who wins resourceDestroyer, combatMaster, AND damageEfficiency
   // (traitor is optional)
   let goldenCow = null;
-  const candidates = [resourceDestroyer, combatMaster, damageEfficiency];
-  const nonNull = candidates.filter((c) => c.teamID != null);
-  if (nonNull.length === 3) {
-    const firstTeam = nonNull[0].teamID;
-    if (nonNull.every((c) => c.teamID === firstTeam)) {
-      goldenCow = { teamID: firstTeam, playerName: nonNull[0].playerName, allyTeam: nonNull[0].allyTeam };
+  const winners = [resourceDestroyer, combatMaster, damageEfficiency]
+    .map((a) => a.winner)
+    .filter((w) => w != null);
+  if (winners.length === 3) {
+    const first = winners[0];
+    if (winners.every((w) => w.teamID === first.teamID)) {
+      const { teamID, playerName, allyTeam, color } = first;
+      goldenCow = { teamID, playerName, allyTeam, color };
     }
   }
+
+  // --- Sub-awards (final cumulative team stats, single winner each) ---
+  const resourcesByTeam = new Map();
+  const damageTakenByTeam = new Map();
+  for (const [teamID, stats] of finalStats) {
+    resourcesByTeam.set(
+      teamID,
+      Number(stats.metalProduced ?? 0) + Number(stats.energyProduced ?? 0),
+    );
+    damageTakenByTeam.set(teamID, Number(stats.damageReceived ?? 0));
+  }
+  const mostResources = rankEntries(resourcesByTeam).winner;
+  const mostDamageTaken = rankEntries(damageTakenByTeam).winner;
 
   return {
     resourceDestroyer,
@@ -209,5 +220,19 @@ export function computeAwards({
     damageEfficiency,
     traitor,
     goldenCow,
+    subAwards: { mostResources, mostDamageTaken },
   };
+}
+
+/**
+ * Latest cumulative team_stats row per team (rows are cumulative per frame,
+ * so the highest frame seen per team is the final value).
+ */
+function finalStatsByTeam(teamStats) {
+  const finalStats = new Map();
+  for (const s of teamStats) {
+    const existing = finalStats.get(s.teamID);
+    if (!existing || s.frame > existing.frame) finalStats.set(s.teamID, s);
+  }
+  return finalStats;
 }

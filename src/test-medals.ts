@@ -11,6 +11,7 @@ import { buildMatchDataset } from "./pipeline/buildSeries.js";
 import { analyzeMatch } from "./pipeline/analyzeMatch.js";
 import { computeMedals } from "./pipeline/raw/computeMedals.js";
 import { computeAwards } from "./pipeline/raw/computeAwards.js";
+import { assignPlayerColors } from "./pipeline/playerColors.js";
 
 const FRAMES_PER_SECOND = 30;
 
@@ -110,6 +111,8 @@ for (const m of medals.damageTaken) {
 console.log();
 
 // Awards
+const allyIds = [...new Set(match.allyTeams.map((a: any) => a.allyTeamID))].sort((a: number, b: number) => a - b);
+const playerColors = assignPlayerColors(playersWithPositions, allyIds[0], allyIds[1]);
 const awards = computeAwards({
   unitsCreated: events.unitsCreated ?? [],
   unitsKilled: events.unitsKilled ?? [],
@@ -117,18 +120,21 @@ const awards = computeAwards({
   unitDefinitions: unitDefs,
   players: playersWithPositions,
   teamToAlly,
+  playerColors,
 });
 
+const fmtAward = (a: any) => a.winner ? `${a.winner.playerName} (${a.winner.value}) [runners: ${a.runnersUp.map((r: any) => `${r.playerName}(${r.value})`).join(", ") || "—"}]` : "—";
 console.log("=== Awards ===");
-console.log(`  Resource Destroyer: ${awards.resourceDestroyer.playerName ?? "—"} (${awards.resourceDestroyer.value} structures)`);
-console.log(`  Combat Master:      ${awards.combatMaster.playerName ?? "—"} (${awards.combatMaster.value} units/defenses)`);
-console.log(`  Damage Efficiency:  ${awards.damageEfficiency.playerName ?? "—"} (${awards.damageEfficiency.value}x ratio)`);
-console.log(`  Traitor:            ${awards.traitor.playerName ?? "—"} (${awards.traitor.value} friendly kills)`);
+console.log(`  Resource Destroyer: ${fmtAward(awards.resourceDestroyer)}`);
+console.log(`  Combat Master:      ${fmtAward(awards.combatMaster)}`);
+console.log(`  Damage Efficiency:  ${fmtAward(awards.damageEfficiency)}`);
+console.log(`  Traitor:            ${fmtAward(awards.traitor)}`);
 console.log(`  Golden Cow:         ${awards.goldenCow?.playerName ?? "—"}`);
+console.log(`  Most Resources:     ${awards.subAwards.mostResources ? `${awards.subAwards.mostResources.playerName} (${awards.subAwards.mostResources.value})` : "—"}`);
+console.log(`  Most Damage Taken:  ${awards.subAwards.mostDamageTaken ? `${awards.subAwards.mostDamageTaken.playerName} (${awards.subAwards.mostDamageTaken.value})` : "—"}`);
 console.log();
 
 // Milestones + score
-const allyIds = [...new Set(match.allyTeams.map((a: any) => a.allyTeamID))].sort((a: number, b: number) => a - b);
 const winningAlly = match.allyTeams.find((a: any) => a.won);
 const winnerSide = winningAlly?.allyTeamID === allyIds[0] ? "A" : "B";
 

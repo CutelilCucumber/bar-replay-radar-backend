@@ -4,6 +4,7 @@ import { buildMatchDataset } from "./buildSeries";
 import { analyzeMatch } from "./analyzeMatch";
 import { computeMedals } from "./raw/computeMedals";
 import { computeAwards } from "./raw/computeAwards";
+import { assignPlayerColors } from "./playerColors";
 import { GexClient } from "../gex/client";
 import type { AllyTeam, GameOutput, GameSettings, MatchSummary, Player } from "../types/gex";
 import type { AnalyzableMatch, Medals } from "../types/domain";
@@ -126,6 +127,7 @@ async function assembleAndInsert(input: AssembleAndInsertInput): Promise<Process
   const { ecoBoost, extraUnits, modded } = deriveModFlags(input.gameSettings);
   const teamToAlly = buildTeamToAllyMap(playersWithPositions);
   const pveFlag = isPvE(playersWithPositions);
+  const playerColors = assignPlayerColors(playersWithPositions, allyA, allyB);
 
   const medals: Medals = {
     ...computeMedals({
@@ -143,6 +145,7 @@ async function assembleAndInsert(input: AssembleAndInsertInput): Promise<Process
       unitDefinitions: (input.eventJson.unitDefinitions as unknown[]) ?? [],
       players: playersWithPositions,
       teamToAlly,
+      playerColors,
     }) as Medals["awards"],
   };
 

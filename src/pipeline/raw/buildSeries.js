@@ -1,3 +1,5 @@
+import { assignPlayerColors } from "../playerColors.js";
+
 const FRAMES_PER_SECOND = 30;
 const BUCKET_FRAMES = 60 * FRAMES_PER_SECOND; // frames per 1-minute bucket
 
@@ -38,6 +40,7 @@ export function bucketFrameStatsToSeries(
 
   const teamToAlly = buildTeamToAllyMap(players);
   const [allyA, allyB] = getSortedAllyIds(allyTeams);
+  const playerColors = assignPlayerColors(players, allyA, allyB);
   const unitDefsById = buildUnitDefsById(unitDefinitions);
   const matchDurationFrames = durationMin * 60 * FRAMES_PER_SECOND;
 
@@ -55,6 +58,7 @@ export function bucketFrameStatsToSeries(
       opponentAlly: allyB,
       teamToAlly,
       players,
+      playerColors,
       unitDefsById,
       unitsCreated,
       unitsKilled,
@@ -75,6 +79,7 @@ export function bucketFrameStatsToSeries(
       opponentAlly: allyA,
       teamToAlly,
       players,
+      playerColors,
       unitDefsById,
       unitsCreated,
       unitsKilled,
@@ -233,6 +238,7 @@ function buildTeamFacts({
   opponentAlly,
   teamToAlly,
   players,
+  playerColors,
   unitDefsById,
   unitsCreated,
   unitsKilled,
@@ -334,7 +340,7 @@ function buildTeamFacts({
     commanderUnitIDs: [...commanderUnitIDs],
     commanderDeaths,
     commanderClosestApproachToEnemyBase: closestApproach,
-    startPositions: buildStartPositions(players, ally),
+    startPositions: buildStartPositions(players, ally, playerColors),
   };
 }
 
@@ -359,9 +365,10 @@ function distance2D(x1, z1, x2, z2) {
 
 /**
  * Extracts starting positions for all players on a given ally side.
- * Returns an array of { playerName, teamID, x, z } for frontend map visualization.
+ * Returns an array of { playerName, teamID, x, z, color } for frontend map
+ * visualization. color is resolved upstream via pipeline/playerColors.js.
  */
-function buildStartPositions(players, allyTeamID) {
+function buildStartPositions(players, allyTeamID, playerColors = {}) {
   return players
     .filter((p) => p.allyTeamID === allyTeamID && p.startingPosition)
     .map((p) => ({
@@ -369,6 +376,7 @@ function buildStartPositions(players, allyTeamID) {
       teamID: p.teamID,
       x: p.startingPosition.x,
       z: p.startingPosition.z,
+      color: playerColors[p.teamID] ?? null,
     }));
 }
 
