@@ -141,6 +141,7 @@ async function assembleAndInsert(input: AssembleAndInsertInput): Promise<Process
     awards: computeAwards({
       unitsCreated: (input.eventJson.unitsCreated as unknown[]) ?? [],
       unitsKilled: (input.eventJson.unitsKilled as unknown[]) ?? [],
+      unitDamage: (input.eventJson.unitDamage as unknown[]) ?? [],
       teamStats: (input.eventJson.teamStats as unknown[]) ?? [],
       unitDefinitions: (input.eventJson.unitDefinitions as unknown[]) ?? [],
       players: playersWithPositions,

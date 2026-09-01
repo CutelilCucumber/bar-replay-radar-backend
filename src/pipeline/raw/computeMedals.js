@@ -8,7 +8,7 @@
  *
  * Each medal entry includes the unit's definition name, the player who built it
  * (resolved via teamID -> players array), build/destroy frames, kill count,
- * veterancy stats, and highest-value kill.
+ * damage dealt/taken, metal cost, veterancy stats, and highest-value kill.
  *
  * NOTE: Per-player attribution is possible because BAR assigns each player a unique
  * teamID. Event data (unitsCreated, unitsKilled, unitDamage) uses teamID, which
@@ -72,7 +72,7 @@ export function computeMedals({
   for (const k of unitsKilled) {
     if (k.attackerID == null) continue;
     const killDef = defsById.get(k.definitionID);
-    const cost = killDef?.cost ?? 0;
+    const cost = killDef?.metalCost ?? 0;
     const entry =
       killStatsByAttacker.get(k.attackerID) ??
       { count: 0, bestCost: 0, highestValueKill: null };
@@ -114,6 +114,8 @@ export function computeMedals({
       kills: killStats?.count ?? 0,
       experience: Number(dmg.experience ?? 0),
       rank: Number(dmg.rank ?? 0),
+      damageDealt: Number(dmg.damageDealt ?? 0),
+      metalCost: Number(def?.metalCost ?? 0),
       highestValueKill: killStats?.highestValueKill ?? null,
       totalDamageTaken: totalDamageTaken.get(unitID) ?? 0,
     });
@@ -122,23 +124,15 @@ export function computeMedals({
   // Sort and take top N for each category
   const veteranUnits = [...entries]
     .sort((a, b) => b.experience - a.experience || b.rank - a.rank)
-    .slice(0, TOP_N)
-    .map(stripTotalDamageTaken);
+    .slice(0, TOP_N);
 
   const killEfficiency = [...entries]
     .sort((a, b) => b.kills - a.kills || b.experience - a.experience)
-    .slice(0, TOP_N)
-    .map(stripTotalDamageTaken);
+    .slice(0, TOP_N);
 
   const damageTaken = [...entries]
     .sort((a, b) => b.totalDamageTaken - a.totalDamageTaken)
     .slice(0, TOP_N);
 
   return { veteranUnits, killEfficiency, damageTaken };
-}
-
-function stripTotalDamageTaken(entry) {
-  const { totalDamageTaken, ...rest } = entry;
-  void totalDamageTaken;
-  return rest;
 }

@@ -87,7 +87,7 @@ const medals = computeMedals({
 console.log("=== Medals: Veteran Units (top 3 by experience) ===");
 for (const m of medals.veteranUnits) {
   const status = m.destroyedFrame ? `Destroyed at frame ${m.destroyedFrame}` : "Survived";
-  console.log(`  ${m.definitionName} (${m.playerName}, Team ${m.allyTeam}) — ${m.kills} kills, exp=${m.experience.toFixed(4)}, rank=${m.rank}, ${status}`);
+  console.log(`  ${m.definitionName} (${m.playerName}, Team ${m.allyTeam}) — ${m.kills} kills, ${Math.round(m.damageDealt)} dmg dealt, cost ${m.metalCost}, built @${m.buildFrame}, ${status}, exp=${m.experience.toFixed(4)}`);
   if (m.highestValueKill) {
     console.log(`    Best kill: ${m.highestValueKill.definitionName} (cost ${m.highestValueKill.cost})`);
   }
@@ -97,7 +97,7 @@ console.log();
 console.log("=== Medals: Kill Efficiency (top 3 by kills) ===");
 for (const m of medals.killEfficiency) {
   const status = m.destroyedFrame ? `Destroyed at frame ${m.destroyedFrame}` : "Survived";
-  console.log(`  ${m.definitionName} (${m.playerName}, Team ${m.allyTeam}) — ${m.kills} kills, exp=${m.experience.toFixed(4)}, rank=${m.rank}, ${status}`);
+  console.log(`  ${m.definitionName} (${m.playerName}, Team ${m.allyTeam}) — ${m.kills} kills, ${Math.round(m.damageDealt)} dmg dealt, cost ${m.metalCost}, built @${m.buildFrame}, ${status}`);
   if (m.highestValueKill) {
     console.log(`    Best kill: ${m.highestValueKill.definitionName} (cost ${m.highestValueKill.cost})`);
   }
@@ -107,7 +107,7 @@ console.log();
 console.log("=== Medals: Damage Taken (top 3 by damage absorbed) ===");
 for (const m of medals.damageTaken) {
   const status = m.destroyedFrame ? `Destroyed at frame ${m.destroyedFrame}` : "Survived";
-  console.log(`  ${m.definitionName} (${m.playerName}, Team ${m.allyTeam}) — ${(m.totalDamageTaken ?? 0).toFixed(0)} dmg taken, ${m.kills} kills, exp=${m.experience.toFixed(4)}, rank=${m.rank}, ${status}`);
+  console.log(`  ${m.definitionName} (${m.playerName}, Team ${m.allyTeam}) — ${(m.totalDamageTaken ?? 0).toFixed(0)} dmg taken, ${Math.round(m.damageDealt)} dmg dealt, built @${m.buildFrame}, ${status}`);
 }
 console.log();
 
@@ -118,6 +118,7 @@ const playerColors = assignPlayerColors(playersWithPositions, allyIds[0], allyId
 const awards = computeAwards({
   unitsCreated: events.unitsCreated ?? [],
   unitsKilled: events.unitsKilled ?? [],
+  unitDamage: events.unitDamage ?? [],
   teamStats: events.teamStats ?? [],
   unitDefinitions: unitDefs,
   players: playersWithPositions,

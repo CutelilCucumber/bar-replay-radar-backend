@@ -74,6 +74,8 @@ export interface MedalEntry {
   kills: number;
   experience: number;
   rank: number;
+  damageDealt: number;
+  metalCost: number;
   highestValueKill: { definitionName: string; cost: number } | null;
   totalDamageTaken?: number;
 }

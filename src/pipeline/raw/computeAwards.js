@@ -2,12 +2,16 @@
  * Computes per-player awards from raw event data, in BAR's end-game shape.
  *
  * Awards tracked (each returns the winner plus up to two runners-up):
- * - Resource Destroyer: player who destroyed the most resource production structures
- * - Combat Master: player who destroyed the most units AND defense structures combined
+ * - Resource Destroyer: player who dealt the most damage to resource production structures
+ * - Combat Master: player who dealt the most damage to units AND defense structures combined
  * - Damage Efficiency: player with the best damageDealt/metalUsed ratio
- * - Traitor: player who destroyed the most allied units (friendly fire)
+ * - Traitor: player who dealt the most damage to allied units (friendly fire)
  * - Golden Cow: player who sweeps resourceDestroyer + combatMaster + damageEfficiency
  *   (traitor is optional)
+ *
+ * Kill-count awards (resourceDestroyer, combatMaster, traitor) are scored by the
+ * damage dealt to each victim (the victim's final damageTaken from unitDamage),
+ * not by number of kills.
  *
  * Sub-awards (single winner each, derived from final cumulative team stats):
  * - Most resources produced (metalProduced + energyProduced)
@@ -69,6 +73,7 @@ const DEFENSE_STRUCTURE_DEFS = new Set([
  * @param {object} params
  * @param {Array} params.unitsCreated - unit_created events
  * @param {Array} params.unitsKilled - unit_killed events
+ * @param {Array} params.unitDamage - unit_damage events (cumulative per frame)
  * @param {Array} params.teamStats - team_stats events (cumulative per frame)
  * @param {Array} params.unitDefinitions - unit definition objects
  * @param {Array} params.players - player objects with teamID, name, etc.
@@ -79,6 +84,7 @@ const DEFENSE_STRUCTURE_DEFS = new Set([
 export function computeAwards({
   unitsCreated = [],
   unitsKilled = [],
+  unitDamage = [],
   teamStats = [],
   unitDefinitions = [],
   players = [],
@@ -90,6 +96,22 @@ export function computeAwards({
 
   const playerByTeam = new Map();
   for (const p of players) playerByTeam.set(p.teamID, p);
+
+  // Final damage each unit absorbed: highest-frame unitDamage row per unitID
+  // (rows are cumulative, so the latest frame is the total for that unit).
+  const finalDamageTakenByUnit = new Map();
+  for (const d of unitDamage) {
+    const existing = finalDamageTakenByUnit.get(d.unitID);
+    if (!existing || d.frame > existing.frame) finalDamageTakenByUnit.set(d.unitID, d);
+  }
+
+  // Damage dealt to a victim = the damage it absorbed. Fall back to the victim's
+  // metal cost when it has no damage row at all (rare — e.g. self-destruct).
+  const damageForKill = (k) => {
+    const dmg = finalDamageTakenByUnit.get(k.unitID);
+    if (dmg) return Number(dmg.damageTaken ?? 0);
+    return Number(defsById.get(k.definitionID)?.metalCost ?? 0);
+  };
 
   // Helper to resolve a player from a teamID
   const resolvePlayer = (teamID) => {
@@ -103,7 +125,7 @@ export function computeAwards({
   };
 
   // --- Resource Destroyer ---
-  // Count how many resource structures each player destroyed
+  // Damage dealt to resource production structures each player destroyed
   const resourceKillsByTeam = new Map();
   for (const k of unitsKilled) {
     if (k.attackerTeam == null) continue;
@@ -112,13 +134,13 @@ export function computeAwards({
     if (RESOURCE_STRUCTURE_DEFS.has(name)) {
       resourceKillsByTeam.set(
         k.attackerTeam,
-        (resourceKillsByTeam.get(k.attackerTeam) ?? 0) + 1,
+        (resourceKillsByTeam.get(k.attackerTeam) ?? 0) + damageForKill(k),
       );
     }
   }
 
   // --- Combat Master ---
-  // Units AND defense structures destroyed (combined count).
+  // Damage dealt to units AND defense structures destroyed (combined).
   // Only resource structures are excluded; defense structures count together with
   // created mobile units (anything in unitsCreated, i.e. not a map feature).
   const createdUnitDefs = new Set(unitsCreated.map((u) => u.definitionID));
@@ -133,7 +155,7 @@ export function computeAwards({
     if (!DEFENSE_STRUCTURE_DEFS.has(name) && !createdUnitDefs.has(k.definitionID)) continue;
     combatKillsByTeam.set(
       k.attackerTeam,
-      (combatKillsByTeam.get(k.attackerTeam) ?? 0) + 1,
+      (combatKillsByTeam.get(k.attackerTeam) ?? 0) + damageForKill(k),
     );
   }
 
@@ -148,7 +170,7 @@ export function computeAwards({
   }
 
   // --- Traitor ---
-  // Friendly fire: attackerTeam != victim teamID but same allyTeamID
+  // Friendly fire damage: attackerTeam != victim teamID but same allyTeamID
   const traitorKillsByTeam = new Map();
   for (const k of unitsKilled) {
     if (k.attackerTeam == null || k.attackerTeam === k.teamID) continue;
@@ -157,7 +179,7 @@ export function computeAwards({
     if (attackerAlly != null && attackerAlly === victimAlly) {
       traitorKillsByTeam.set(
         k.attackerTeam,
-        (traitorKillsByTeam.get(k.attackerTeam) ?? 0) + 1,
+        (traitorKillsByTeam.get(k.attackerTeam) ?? 0) + damageForKill(k),
       );
     }
   }
