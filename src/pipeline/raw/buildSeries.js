@@ -1,5 +1,10 @@
 import { assignPlayerColors } from "../playerColors.js";
 
+// Position data (per-player start coordinates for the frontend map) is the
+// heaviest part of the per-team facts. Default ON; set ENABLE_POSITION_DATA=false
+// to skip computing/storing it and cut memory pressure (e.g. tight hosts).
+const ENABLE_POSITION_DATA = process.env.ENABLE_POSITION_DATA !== "false";
+
 const FRAMES_PER_SECOND = 30;
 const BUCKET_FRAMES = 60 * FRAMES_PER_SECOND; // frames per 1-minute bucket
 
@@ -339,7 +344,9 @@ function buildTeamFacts({
     commanderUnitIDs: [...commanderUnitIDs],
     commanderDeaths,
     commanderClosestApproachToEnemyBase: closestApproach,
-    startPositions: buildStartPositions(players, ally, playerColors),
+    startPositions: ENABLE_POSITION_DATA
+      ? buildStartPositions(players, ally, playerColors)
+      : [],
   };
 }
 
