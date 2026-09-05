@@ -9,6 +9,11 @@ export interface AllyTeam {
   won: boolean;
 }
 
+export interface Team {
+  teamID: number;
+  startingPosition?: { x: number; z: number };
+}
+
 export interface Player {
   playerID?: number;
   userID?: number;
@@ -19,6 +24,7 @@ export interface Player {
   skill?: number;
   skillUncertainty?: number;
   countryCode?: string | null;
+  startingPosition?: { x: number; z: number };
 }
 
 // gex's per-match game settings blob. Only the fields actually read anywhere
@@ -49,6 +55,7 @@ export interface MatchSummary {
   startTime: string; // ISO date-time string, as returned by gex
   players: Player[];
   allyTeams: AllyTeam[];
+  teams?: Team[];
   playerLeaves?: unknown[];
   spectators?: unknown[];
   mapDraws?: unknown[];

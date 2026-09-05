@@ -1,4 +1,4 @@
-import type { AllyTeam, GameSettings, Player } from "./gex";
+import type { AllyTeam, GameSettings, Player, Team } from "./gex";
 
 export interface GexWebhookMatch {
   id: string;
@@ -11,6 +11,7 @@ export interface GexWebhookMatch {
   startTime: string;
   players: Player[];
   allyTeams: AllyTeam[];
+  teams?: Team[];
   teamDeaths?: unknown[];
   spectators?: unknown[];
   mapDraws?: unknown[];

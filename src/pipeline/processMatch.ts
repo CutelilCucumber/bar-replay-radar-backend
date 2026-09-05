@@ -6,7 +6,7 @@ import { computeMedals } from "./raw/computeMedals";
 import { computeAwards } from "./raw/computeAwards";
 import { assignPlayerColors } from "./playerColors";
 import { GexClient } from "../gex/client";
-import type { AllyTeam, GameOutput, GameSettings, MatchSummary, Player } from "../types/gex";
+import type { AllyTeam, GameOutput, GameSettings, MatchSummary, Player, Team } from "../types/gex";
 import type { AnalyzableMatch, Medals } from "../types/domain";
 
 export type ProcessResult =
@@ -98,7 +98,7 @@ interface AssembleAndInsertInput {
   spectatorCount: number;
   mapDraws: unknown[];
   gameSettings?: GameSettings | undefined;
-  teams?: { teamID: number; startingPosition?: { x: number; z: number } }[] | undefined;
+  teams?: Team[] | undefined;
 }
 
 async function assembleAndInsert(input: AssembleAndInsertInput): Promise<ProcessResult> {
@@ -251,6 +251,7 @@ export async function processMatch(gex: GexClient, summary: MatchSummary): Promi
     throw new Error(`gex has no match record for id ${summary.id}`);
   }
 
+  const teams = matchJson.teams;
   return assembleAndInsert({
     id: summary.id,
     map: summary.map,
@@ -267,7 +268,7 @@ export async function processMatch(gex: GexClient, summary: MatchSummary): Promi
     spectatorCount: matchJson.spectators?.length ?? 0,
     mapDraws: matchJson.mapDraws ?? [],
     gameSettings: matchJson.gameSettings,
-    teams: (matchJson as unknown as Record<string, unknown>).teams as { teamID: number; startingPosition?: { x: number; z: number } }[] | undefined,
+    ...(teams ? { teams } : {}),
   });
 }
 
@@ -293,7 +294,7 @@ export async function processWebhookPayload(payload: {
   spectators?: unknown[] | undefined;
   mapDraws?: unknown[] | undefined;
   gameSettings?: GameSettings | undefined;
-  teams?: { teamID: number; startingPosition?: { x: number; z: number } }[] | undefined;
+  teams?: Team[];
   [key: string]: unknown;
 }): Promise<ProcessResult> {
   const existing = await prisma.match.findUnique({ where: { id: payload.id }, select: { id: true } });
