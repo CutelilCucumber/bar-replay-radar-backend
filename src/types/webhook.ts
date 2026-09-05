@@ -11,6 +11,10 @@ export interface GexWebhookMatch {
   startTime: string;
   players: Player[];
   allyTeams: AllyTeam[];
+  // gex puts startingPosition on the teams[] objects, not players[]. Confirmed against
+  // the webhook payload documentation: each team carries { gameID, teamID, allyTeamID,
+  // startingPosition: { x, z }, ... }.
+  teams?: { teamID: number; allyTeamID?: number; startingPosition?: { x: number; z: number } }[];
   teamDeaths?: unknown[];
   spectators?: unknown[];
   mapDraws?: unknown[];
