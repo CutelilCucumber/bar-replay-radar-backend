@@ -95,9 +95,9 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
 
     fastify.log.info({ matchId: match.id }, "received gex webhook");
 
-    fastify.log.debug({
+    fastify.log.info({
       matchId: match.id,
-      teams: match.teams?.map(t => ({ teamID: t.teamID, allyTeamID: t.allyTeamID, hasPos: !!t.startingPosition, posKeys: t.startingPosition ? Object.keys(t.startingPosition) : [] })),
+      teams: match.teams?.map(t => ({ teamID: t.teamID, allyTeamID: t.allyTeamID, hasPos: !!t.startingPosition, pos: t.startingPosition })),
       players: match.players?.map(p => ({ teamID: p.teamID, allyTeamID: p.allyTeamID, name: p.name })),
     }, "webhook teams/players structure");
 
