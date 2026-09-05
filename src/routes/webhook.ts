@@ -95,6 +95,12 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
 
     fastify.log.info({ matchId: match.id }, "received gex webhook");
 
+    fastify.log.debug({
+      matchId: match.id,
+      teams: match.teams?.map(t => ({ teamID: t.teamID, allyTeamID: t.allyTeamID, hasPos: !!t.startingPosition, posKeys: t.startingPosition ? Object.keys(t.startingPosition) : [] })),
+      players: match.players?.map(p => ({ teamID: p.teamID, allyTeamID: p.allyTeamID, name: p.name })),
+    }, "webhook teams/players structure");
+
     // The payload is the full GameOutput; the pipeline only consumes a subset of it.
     // Free the large arrays it never reads (unitResources, factoryUnitCreate,
     // unitPosition, transfer events, lookup maps) so GC can reclaim them during
@@ -145,7 +151,13 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
     switch (result) {
       case "inserted": {
         const created = await prisma.match.findUnique({ where: { id: match.id } });
-        fastify.log.info({ matchId: match.id, result: "inserted" }, "webhook match inserted");
+        const createdR = created as unknown as Record<string, unknown>;
+        fastify.log.info({
+          matchId: match.id,
+          result: "inserted",
+          teamAStartPositions: (createdR.teamAFacts as Record<string, unknown> | undefined)?.startPositions,
+          teamBStartPositions: (createdR.teamBFacts as Record<string, unknown> | undefined)?.startPositions,
+        }, "webhook match inserted");
         return reply.code(201).send({ status: "processed", match: created });
       }
       case "alreadyExists": {
