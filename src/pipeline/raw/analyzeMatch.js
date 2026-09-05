@@ -199,6 +199,7 @@ function calculateTimeBonus(durationMin) {
 }
 
 function clamp01(x) {
+  if (!Number.isFinite(x)) return 0;
   return Math.max(0, Math.min(1, x));
 }
 
@@ -536,7 +537,7 @@ function commanderAttack(factsA, factsB) {
   const closest = [best(factsA), best(factsB)]
     .filter(Boolean)
     .sort((a, b) => a.distance - b.distance)[0];
-  if (!closest) return { flag: false, magnitude: 0 };
+  if (!closest || !Number.isFinite(closest.distance)) return { flag: false, magnitude: 0 };
   const flag = closest.distance <= APPROACH_THRESHOLD;
   return {
     flag,
