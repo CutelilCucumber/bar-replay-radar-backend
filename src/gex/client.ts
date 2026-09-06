@@ -8,9 +8,11 @@ export interface GexClientOptions {
 
 export class GexClient {
   private readonly rateLimiter: RateLimiter;
+  private readonly logger: RateLimiterLogger | undefined;
 
   constructor(private readonly options: GexClientOptions) {
-    this.rateLimiter = new RateLimiter(300, 1, options.logger);
+    this.rateLimiter = new RateLimiter(60, 1, options.logger);
+    this.logger = options.logger;
   }
 
   /** Non-consuming read of current rate-limiter state — for periodic sweep-level logging. */
@@ -26,10 +28,26 @@ export class GexClient {
       headers: { "User-Agent": "replay-radar-backend (discord: cutelilcucumber)" },
     });
 
-
     // gex returns 204 with an empty body for "not processed yet" — this is a valid
     // domain state, not an error, so it must never throw here.
     if (res.status === 204) return null;
+
+    // 429 handling: single retry with Retry-After support
+    if (res.status === 429) {
+      const retryAfter = res.headers.get("Retry-After");
+      const waitMs = retryAfter ? Math.max(1000, parseInt(retryAfter, 10) * 1000) : 5000;
+
+      this.logger?.debug(
+        { url, waitMs, retryAfter: res.headers.get("Retry-After") },
+        "[gex] rate limited (429) — backing off"
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+
+      // Retry once after backoff
+      return this.getJson(url);
+    }
+
     if (!res.ok) throw new Error(`${res.status} ${res.statusText} — ${url}`);
 
     const body = await res.json();
