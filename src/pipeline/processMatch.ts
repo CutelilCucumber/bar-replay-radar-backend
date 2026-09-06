@@ -99,6 +99,8 @@ interface AssembleAndInsertInput {
   mapDraws: unknown[];
   gameSettings?: GameSettings | undefined;
   teams?: { teamID: number; startingPosition?: { x: number; z: number } }[] | undefined;
+  mapWidth?: number | undefined;
+  mapHeight?: number | undefined;
 }
 
 async function assembleAndInsert(input: AssembleAndInsertInput): Promise<ProcessResult> {
@@ -206,6 +208,8 @@ async function assembleAndInsert(input: AssembleAndInsertInput): Promise<Process
         score: analysis.score,
         startTime: new Date(input.startTime),
         durationMinutes: durationMin,
+        mapWidth: input.mapWidth ?? null,
+        mapHeight: input.mapHeight ?? null,
         // `analysis.flags` keys are exactly the 20 milestone keys, matching
         // schema.prisma's boolean columns 1:1.
         ...analysis.flags,
@@ -251,6 +255,13 @@ export async function processMatch(gex: GexClient, summary: MatchSummary): Promi
     throw new Error(`gex has no match record for id ${summary.id}`);
   }
 
+  // Extract map dimensions from gex's mapData (in Spring units, 1 Spring unit = 512 elmos)
+  const mapData = (matchJson as unknown as Record<string, unknown>).mapData as
+    | { width?: number; height?: number }
+    | undefined;
+  const mapWidth = mapData?.width ? mapData.width * 512 : undefined;
+  const mapHeight = mapData?.height ? mapData.height * 512 : undefined;
+
   return assembleAndInsert({
     id: summary.id,
     map: summary.map,
@@ -268,6 +279,8 @@ export async function processMatch(gex: GexClient, summary: MatchSummary): Promi
     mapDraws: matchJson.mapDraws ?? [],
     gameSettings: matchJson.gameSettings,
     teams: (matchJson as unknown as Record<string, unknown>).teams as { teamID: number; startingPosition?: { x: number; z: number } }[] | undefined,
+    mapWidth,
+    mapHeight,
   });
 }
 
@@ -294,10 +307,16 @@ export async function processWebhookPayload(payload: {
   mapDraws?: unknown[] | undefined;
   gameSettings?: GameSettings | undefined;
   teams?: { teamID: number; startingPosition?: { x: number; z: number } }[] | undefined;
+  // gex includes mapData in the webhook payload (same shape as matchExample.json)
+  mapData?: { width?: number; height?: number } | undefined;
   [key: string]: unknown;
 }): Promise<ProcessResult> {
   const existing = await prisma.match.findUnique({ where: { id: payload.id }, select: { id: true } });
   if (existing) return "alreadyExists";
+
+  // Extract map dimensions from gex's mapData (in Spring units, 1 Spring unit = 512 elmos)
+  const mapWidth = payload.mapData?.width ? payload.mapData.width * 512 : undefined;
+  const mapHeight = payload.mapData?.height ? payload.mapData.height * 512 : undefined;
 
   return assembleAndInsert({
     id: payload.id,
@@ -319,5 +338,7 @@ export async function processWebhookPayload(payload: {
     mapDraws: payload.mapDraws ?? [],
     gameSettings: payload.gameSettings,
     teams: payload.teams,
+    mapWidth,
+    mapHeight,
   });
 }

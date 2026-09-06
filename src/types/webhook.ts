@@ -19,6 +19,8 @@ export interface GexWebhookMatch {
   spectators?: unknown[];
   mapDraws?: unknown[];
   gameSettings?: GameSettings;
+  // Map dimensions in Spring units (1 Spring unit = 512 elmos). Same as matchExample.json's mapData.
+  mapData?: { width?: number; height?: number } | undefined;
 }
 
 // Confirmed against a real payload — field is `unitDefinitions`, not `unitDefs`

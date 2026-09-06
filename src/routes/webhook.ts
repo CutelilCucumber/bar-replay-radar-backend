@@ -150,6 +150,7 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
       mapDraws: match.mapDraws,
       gameSettings: match.gameSettings,
       teams: match.teams,
+      mapData: match.mapData,
       ...output, // teamStats, unitsCreated, unitDefinitions, windUpdates, etc.
     });
 

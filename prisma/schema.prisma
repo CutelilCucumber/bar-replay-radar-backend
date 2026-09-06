@@ -28,6 +28,8 @@ model Match {
   score           Int
   startTime       DateTime
   durationMinutes Int
+  mapWidth        Int?
+  mapHeight       Int?
 
   // --- milestone flags (one indexed boolean per key from milestones.js MILESTONES) ---
   // Excludes baseRace — disabled per PROJECT_SUMMARY TODOs.

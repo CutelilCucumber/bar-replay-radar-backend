@@ -150,6 +150,8 @@ function toRecord(row: Prisma.MatchGetPayload<Record<string, never>>) {
     analysis: r.analysis,
     medals: r.medals ?? null,
     pve: r.pve ?? false,
+    mapWidth: row.mapWidth ?? null,
+    mapHeight: row.mapHeight ?? null,
     ...Object.fromEntries(MILESTONE_KEYS.map((key: string) => [key, r[key]])),
   };
 }
