@@ -91,6 +91,11 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
     // Release it before processing so it isn't retained for the whole pipeline run.
     delete (request as unknown as { rawBody?: string }).rawBody;
 
+    if (process.env.ENABLE_WEBHOOK_PROCESSING !== "true") {
+      fastify.log.info({ matchId: (request.body as GexWebhookPayload).match?.id }, "webhook processing not enabled via env, acknowledging only");
+      return reply.code(202).send({ status: "accepted", message: "webhook processing not enabled" });
+    }
+
     const { match, output } = request.body as GexWebhookPayload;
 
     fastify.log.info({ matchId: match.id }, "received gex webhook");
