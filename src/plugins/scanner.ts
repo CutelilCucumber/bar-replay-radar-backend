@@ -3,8 +3,8 @@ import type { FastifyInstance } from "fastify";
 import { runBackfillSweep } from "../scanner/backfillSweeper";
 import { runRecentSweep } from "../scanner/recentSweeper";
 
-const BACKFILL_INTERVAL_MS = 0;
-const RECENT_INTERVAL_MS = 6 * 60 * 60 * 1000; //6 hrs
+const BACKFILL_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+const RECENT_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 
 const ENABLE_BACKFILL = process.env.ENABLE_BACKFILL !== "false";
 const ENABLE_RECENT = process.env.ENABLE_RECENT !== "false";
