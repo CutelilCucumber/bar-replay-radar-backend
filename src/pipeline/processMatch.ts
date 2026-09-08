@@ -232,6 +232,22 @@ async function assembleAndInsert(input: AssembleAndInsertInput): Promise<Process
     throw err;
   }
 
+  // Backfill map dimensions to any other existing matches of the same map that were
+  // ingested before dimensions were stored (e.g. webhook payloads that omitted
+  // mapData, or rows predating the mapWidth columns). mapWidth/mapHeight are derived
+  // from the map's authoritative dimensions, so every match of a map shares them —
+  // when we process any match that carries them, close the gap for the rest. Cheap:
+  // one UPDATE that's a no-op unless rows actually need it.
+  if (input.mapWidth && input.mapHeight && input.map) {
+    await prisma.match.updateMany({
+      where: {
+        map: String(input.map),
+        OR: [{ mapWidth: null }, { mapHeight: null }],
+      },
+      data: { mapWidth: input.mapWidth, mapHeight: input.mapHeight },
+    });
+  }
+
   return "inserted";
 }
 

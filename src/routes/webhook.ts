@@ -100,6 +100,16 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
 
     fastify.log.info({ matchId: match.id }, "received gex webhook");
 
+    // Map dimensions are used by the frontend to place start positions on the map
+    // texture. Some webhook payloads don't carry mapData (or only carry it partially),
+    // so fall back to gex's match API (getMatchById returns mapData) — only when the
+    // payload itself lacks usable dimensions, to keep the no-fetch fast path untouched.
+    let mapData = match.mapData;
+    if (!mapData?.width || !mapData?.height) {
+      const fetched = await fastify.gex.getMatchById(match.id);
+      mapData = (fetched as unknown as { mapData?: { width?: number; height?: number } })?.mapData;
+    }
+
     fastify.log.info({
       matchId: match.id,
       teams: match.teams?.map(t => ({ teamID: t.teamID, allyTeamID: t.allyTeamID, hasPos: !!t.startingPosition, pos: t.startingPosition })),
@@ -150,7 +160,7 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
       mapDraws: match.mapDraws,
       gameSettings: match.gameSettings,
       teams: match.teams,
-      mapData: match.mapData,
+      mapData,
       ...output, // teamStats, unitsCreated, unitDefinitions, windUpdates, etc.
     });
 
