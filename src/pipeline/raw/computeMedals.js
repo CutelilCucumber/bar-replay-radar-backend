@@ -25,6 +25,13 @@
 
 const TOP_N = 3;
 
+// Stun/paralyzer units (Shuriken/Light Paralyzer Drone "corbw", Paralyzer
+// "armemp", "armdfly") deal EMP disable damage rather than direct damage, which
+// massively inflates their damage-efficiency ranking. Their stored damage is
+// scaled down by /60 (stun values are ~60x real direct damage) so they rank by
+// true damage.
+const STUN_UNITS = new Set(["corbw", "armemp", "armdfly"]);
+
 /**
  * @param {object} params
  * @param {Array} params.unitsCreated
@@ -105,6 +112,7 @@ export function computeMedals({
     const player = playerByTeam.get(created.teamID);
     const ally = teamToAlly[created.teamID];
     const killStats = killStatsByAttacker.get(unitID);
+    const rawDamage = Number(dmg.damageDealt ?? 0);
 
     entries.push({
       unitID,
@@ -118,7 +126,7 @@ export function computeMedals({
       kills: killStats?.count ?? 0,
       experience: Number(dmg.experience ?? 0),
       rank: Number(dmg.rank ?? 0),
-      damageDealt: Number(dmg.damageDealt ?? 0),
+      damageDealt: STUN_UNITS.has(name) ? rawDamage / 60 : rawDamage,
       metalCost: Number(def?.metalCost ?? 0),
       highestValueKill: killStats?.highestValueKill ?? null,
       totalDamageTaken: totalDamageTaken.get(unitID) ?? 0,
